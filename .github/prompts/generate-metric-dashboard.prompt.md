@@ -6,12 +6,12 @@ description: Generate a Dynatrace Gen 3 metric dashboard, metric injector, and d
 You are operating in the **Metric Event Generator** repository. Follow the
 instructions in [AGENTS.md](../../AGENTS.md) exactly.
 
-Inputs you need from the user (ask if missing):
+Inputs you need from the user — **ask for these explicitly before starting** if not already provided. All are optional; never block on a missing item:
 
-- Technology name
-- Dynatrace Hub link (optional)
-- Industry / business domain (optional)
-- Logo URL (optional — search the web if not provided)
+- **Technology name** (required)
+- **Dynatrace Hub link** — e.g. `https://www.dynatrace.com/hub/detail/<technology>/`. If not provided, search the Hub yourself at https://www.dynatrace.com/hub/.
+- **Logo image or URL** — used for the dashboard header image tile. If not provided, search the web for an official brand logo. If nothing reliable is found, use a text-only markdown header — do not block.
+- **Industry / business domain** (optional research hint)
 
 Then:
 
@@ -26,6 +26,11 @@ Then:
    - `<technology>-openpipeline-routing.json`
    - `README.md`, `LEARNINGS.md`, `SALES-PITCH.md`
 5. The dashboard may include a `bubbleMap` tile fed by geo coordinates from the injector.
+   - `bubbleMap`: always set `"regions": { "showRegions": false }` — never specify region codes; they cause "Failed to load map data".
+   - `singleValue` `≥` color rules: **lowest threshold value first, highest last**. Dynatrace applies the last matching rule; wrong order makes all values show the wrong color.
+   - `singleValue` `unitsOverrides`: always use `"unitCategory": "unspecified"` + `"baseUnit": "count"` for raw numeric values. Never use `unitCategory: "time"` — it auto-scales display (1000ms → "1s") but colorRule thresholds compare against raw values, causing wrong colors.
+   - Query variables with `multiple: true` must include `"defaultSelectAll": true` so the dashboard opens with all values selected.
+   - Logo tile uses `type: image` (not markdown). Upload with `bash upload-logo.sh <file> <id> "<desc>"` then reference `/platform/document/v1/documents/<id>/content` in `imageSettings.defaultSource`.
 6. `dtctl apply` the dashboard.
 7. `dtctl apply` the OpenPipeline pipeline and routing settings.
 8. Find the existing injector workflow (`dtctl get workflows`), append new tasks for the injector and entity creator, `dtctl apply` it, then `dtctl exec workflow`. Only create a new workflow if none exists in the tenant.

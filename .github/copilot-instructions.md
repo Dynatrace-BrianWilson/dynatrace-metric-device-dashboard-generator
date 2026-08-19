@@ -23,8 +23,14 @@ This repository is an **agent**: it generates a Dynatrace Gen 3 metric dashboard
 
 - **Gen 3 dashboard JSON only** — match `.example/example_dashboard.json`.
 - **Map tile is optional** — `bubbleMap` over geo coordinates emitted by the injector.
-- **Logo + Title** are TWO markdown tiles (`w:6,h:2` + `w:18,h:2`).
+- **`bubbleMap` regions** — always set `"regions": { "showRegions": false }`. Never specify region codes; mixed/unknown codes cause "Failed to load map data". The map auto-fits to data points.
+- **Inputs — ask upfront if not provided** (all optional, never block): Dynatrace Hub link (`https://www.dynatrace.com/hub/detail/<technology>/`) and logo image/URL. If hub link missing, search the Hub. If logo missing, search the web; fall back to text-only header.
+- **Logo + Title** are TWO tiles: `type: image` (`w:6,h:2`) + markdown title (`w:18,h:2`). Upload logo via `bash upload-logo.sh <file> <id> "<desc>"` (no Python — uses `base64`, `fold`, `dtctl apply`), then set `imageSettings.defaultSource: "/platform/document/v1/documents/<id>/content"`.
+- **Tile types**: `data` (DQL), `markdown` (text/images), `code` (Dynatrace Functions JS — useful for USQL/metric selectors/external APIs), `image` (native image tile — `imageSettings.defaultSource: "/platform/document/v1/documents/<id>/content"`; sizing: `"fit"` or `"fill"`; image must be uploaded to Dynatrace Documents API first).
 - **Charts use `h:4`+, KPIs use `h:2`.**
+- **`singleValue` `≥` color rules** — lowest threshold first, highest threshold last. Dynatrace applies the last matching rule; reversing the order causes all values to show the wrong color.
+- **`singleValue` `unitsOverrides`** — use `"unitCategory": "unspecified"` + `"baseUnit": "count"` for raw numeric values. `unitCategory: "time"` auto-scales display (1000ms → "1s") but compares colorRule thresholds against raw values → wrong colors. Omitting it with `delimiter: true` abbreviates numbers (1000 → "1k").
+- **Dashboard variables** — all query variables with `multiple: true` must include `"defaultSelectAll": true` so the dashboard opens showing all data instead of pre-selecting the first query result.
 - **Time charts use `makeTimeseries`** — never `summarize` into a chart.
 - All queries filter by `event.provider == "<technology>.event.provider"`.
 - Injector emits 3,000–5,000 events/run, batched in 500‑event POSTs.

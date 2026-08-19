@@ -237,7 +237,8 @@ that one workflow — the agent never creates a second injector workflow.
 ## Hard rules the agent follows
 
 - **Gen 3 dashboard JSON only** (matches `.example/example_dashboard.json`).
-- **Map tile is required** — `bubbleMap` driven by geo coordinates from the injector.
+- **Map tile is required** — `bubbleMap` driven by geo coordinates from the injector. Always set `"regions": { "showRegions": false }`; specifying region codes causes "Failed to load map data".
+- **`singleValue` `≥` color rules** — lowest threshold first, highest last. Dynatrace applies the last matching rule; reversed order shows the wrong color for every value.
 - **Header is two markdown tiles** — logo (`w:6, h:2`) + title (`w:18, h:2`).
 - **Charts ≥ `h:4`, KPIs `h:2`.**
 - **`makeTimeseries` for time charts**, `summarize` for KPIs — never feed `summarize` into a chart.

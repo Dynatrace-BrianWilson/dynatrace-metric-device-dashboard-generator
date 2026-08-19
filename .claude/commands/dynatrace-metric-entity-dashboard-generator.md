@@ -7,24 +7,41 @@ Generate a Dynatrace Gen 3 metric dashboard, Smartscape entities (via OpenPipeli
 
 Follow `AGENTS.md` in this repository exactly. In particular:
 
-1. Verify `dtctl auth whoami` succeeds before doing anything else.
-2. **Show the active `dtctl` context to the user** (`dtctl ctx current` + `dtctl auth whoami`) and get explicit confirmation that the tenant is correct before any `dtctl apply` or `dtctl exec`.
-3. Mirror the structure of files in `.example/`.
-4. Output goes into `dashboards/<Technology>/`:
+1. **Before doing anything else**, if the user has not provided the following items, ask for them explicitly — make clear each is optional and it's fine if they don't have them:
+   - **Dynatrace Hub link** (e.g. `https://www.dynatrace.com/hub/detail/<technology>/`) — used to research official metric names and extensions. If not provided, search the Hub yourself.
+   - **Logo image or URL** — used for the dashboard header image tile. If not provided, search the web for an official brand logo. If nothing reliable is found, use a text-only header.
+2. Verify `dtctl auth whoami` succeeds before doing anything else.
+3. **Show the active `dtctl` context to the user** (`dtctl ctx current` + `dtctl auth whoami`) and get explicit confirmation that the tenant is correct before any `dtctl apply` or `dtctl exec`.
+4. Mirror the structure of files in `.example/`.
+5. Output goes into `dashboards/<Technology>/`:
    - `<technology>-dashboard-v1.json`
    - `<technology>-injector.js`
    - `<technology>-entity-creator.js`
    - `<technology>-openpipeline.json`
    - `<technology>-openpipeline-routing.json`
+   - `<technology>-logo.png` + `<technology>-logo.yaml` + `upload-logo.sh`
    - `README.md`, `LEARNINGS.md`, `SALES-PITCH.md`
-5. The dashboard may contain a `bubbleMap` map tile, a split logo+title header, section dividers, KPI tiles (`h:2`), and charts (`h:4`+).
-6. `dtctl apply` the dashboard JSON to capture the dashboard ID.
-7. `dtctl apply` the OpenPipeline settings before running the workflow.
-8. Look up the existing injector workflow with
+6. The dashboard logo tile uses `type: image` (not markdown). Upload the logo first:
+   ```bash
+   curl -sL "<logo-url>" -o <technology>-logo.png
+   bash upload-logo.sh <technology>-logo.png <technology>-logo "Technology Logo"
+   ```
+   Then reference it in the dashboard tile:
+   ```json
+   { "type": "image", "imageSettings": { "defaultSource": "/platform/document/v1/documents/<technology>-logo/content", "sizing": "fit", "horizontalAlignment": "center", "verticalAlignment": "center" } }
+   ```
+7. The dashboard may contain a `bubbleMap` map tile, section dividers, KPI tiles (`h:2`), and charts (`h:4`+).
+   - `bubbleMap`: always set `"regions": { "showRegions": false }` — never specify region codes.
+   - `singleValue` `≥` color rules: **lowest threshold value first, highest last**. Dynatrace applies the last matching rule; wrong order makes all values show the wrong color.
+   - `singleValue` `unitsOverrides`: always use `"unitCategory": "unspecified"` + `"baseUnit": "count"` for raw numeric KPIs. `unitCategory: "time"` auto-scales display (1000ms → "1s") but colorRule thresholds compare against raw values, causing wrong colors.
+   - Dashboard variables with `multiple: true` must include `"defaultSelectAll": true`.
+8. `dtctl apply` the dashboard JSON.
+9. `dtctl apply` the OpenPipeline settings before running the workflow.
+10. Look up the existing injector workflow with
    `dtctl get workflows -o json --plain | jq '.[] | select(.title | test("Metrics Dashboard Generator|injector"; "i"))'`.
    - If found: append new tasks `<technology>_v1` and `<technology>_entities_v1` and `dtctl apply` the workflow.
    - If not found: create from `.example/example_data_injector.workflow.json`. Never create a second injector workflow.
-9. `dtctl exec workflow <id>` and confirm SUCCESS.
-10. Verify events landed: `fetch bizevents | filter event.provider == "<technology>.event.provider" | summarize count()`.
-11. Verify entities: `dtctl query "smartscapeNodes \"CUSTOM_<TYPE>\", from:now()-1h | limit 20" --plain`.
-12. Report dashboard URL, workflow ID, and task names back to the user.
+11. `dtctl exec workflow <id>` and confirm SUCCESS.
+12. Verify events landed: `fetch bizevents | filter event.provider == "<technology>.event.provider" | summarize count()`.
+13. Verify entities: `dtctl query "smartscapeNodes \"CUSTOM_<TYPE>\", from:now()-1h | limit 20" --plain`.
+14. Report dashboard URL, workflow ID, and task names back to the user.

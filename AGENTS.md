@@ -11,6 +11,15 @@ metric and log (if logs are applicable) injector**, and create a dynatrace entit
 
 You are a Dynatrace Solutions Engineer. For a given technology:
 
+0. **Gather inputs before starting.** If the user has not provided the following,
+   ask explicitly — but make clear each item is optional:
+   - **Dynatrace Hub link** — e.g. `https://www.dynatrace.com/hub/detail/<technology>/`.
+     Used to research pre-built extensions and official metric names.
+     If the user doesn't have one, search https://www.dynatrace.com/hub/ yourself.
+   - **Logo image or URL** — used for the dashboard header image tile.
+     If the user doesn't have one, search the web for an official brand logo URL
+     and verify it (see Logo section below). If nothing reliable is found, use
+     a text-only markdown header — never block on a missing logo.
 1. Research technology KPIs relevant to the technology provided (15–20).
 2. Include a search of the dynatrace hub - https://www.dynatrace.com/hub/ - for any pre-configured extensions, technology, or application information.
 3. Build a **Gen 3 dashboard** with real‑time KPI tiles, charts, and if applicable, a map tile. The metrics used should be the most relevant for the technology, based on research.
@@ -78,7 +87,59 @@ When invoked, the agent asks for (or infers from the user's request):
 
 ### Logo URL — VERIFY BEFORE EMBEDDING
 
-Never embed a logo without first confirming the URL serves an image to a
+### Logo embedding — base64 (preferred) vs URL
+
+**Use the `image` tile type — confirmed schema:**
+```json
+{
+  "type": "image",
+  "imageSettings": {
+    "defaultSource": "/platform/document/v1/documents/<document-id>/content",
+    "sizing": "fit",
+    "horizontalAlignment": "center",
+    "verticalAlignment": "center"
+  }
+}
+```
+
+Images are stored as Dynatrace Documents (`type: image`) and uploaded via `dtctl apply`
+with a YAML file containing `content: !!binary |` (base64 of the image binary).
+
+**To upload a logo — use `upload-logo.sh` (no Python required):**
+
+```bash
+# Download the logo first
+curl -sL "<logo-url>" -o <technology>-logo.png
+
+# Upload to Dynatrace Image Library via dtctl
+bash upload-logo.sh <technology>-logo.png <technology>-logo "Technology Dashboard Logo"
+# e.g.
+bash upload-logo.sh nvidia-logo.png nvidia-dcgm-logo "NVIDIA DCGM Dashboard Logo"
+```
+
+`upload-logo.sh` uses only `base64`, `fold`, `sed`, and `dtctl apply` — no Python.
+Copy it into each `dashboards/<Technology>/` folder when creating a new dashboard.
+
+**To author the YAML manually:**
+```yaml
+id: <technology>-logo
+name: <technology>-logo
+type: image
+isPrivate: false
+description: Dashboard logo
+content: !!binary |
+  iVBORw0KGgoAAAANSUhEUgAA...   # base64 < logo.png | fold -w 76 | sed 's/^/  /'
+```
+```bash
+dtctl apply -f <technology>-logo.yaml --plain
+```
+
+`sizing`: `"fit"` (letterbox, preserves aspect ratio) or `"fill"` (crops to fill tile).
+Document ID convention: `<technology>-logo` (e.g. `nvidia-dcgm-logo`).
+
+---
+
+Never embed a logo via URL without first confirming the URL serves an image to a
 cross-origin browser. Run:
 
 ```bash
@@ -254,10 +315,32 @@ least one event type.
 above the fold. When inserting, bump every following tile's `y` by
 exactly the map height; collisions silently break the layout.
 
+**`regions` config — always set `showRegions: false`:**
+```json
+"regions": { "showRegions": false }
+```
+Never specify region codes (`"US"`, `"WORLD"`, etc.). Mixed or unknown codes
+cause "an error occured: Failed to load map data". With `showRegions: false`
+the map auto-fits to the data points regardless of geography.
+
+### Gen 3 tile types
+
+There are three **tile types** (`"type"` field in the tile object):
+
+| Tile type | Purpose | Key fields |
+|-----------|---------|-----------|
+| `data` | DQL-powered visualization | `query`, `visualization`, `visualizationSettings`, `davis` |
+| `markdown` | Text, headers, embedded images | `content` (CommonMark string; `![alt](data:image/...;base64,...)` for logos) |
+| `code` | JS function via Dynatrace Functions runtime | `input` (JS string importing `@dynatrace-sdk/*`), `visualization`, `visualizationSettings` |
+| `image` | Native image tile with fill/fit/align sizing | `imageSettings.defaultSource` = `/platform/document/v1/documents/<id>/content`; image stored in Documents API |
+
+The `code` tile is especially useful for data sources not reachable by DQL: USQL, metric selectors, Classic API endpoints, external REST APIs. It runs in the Dynatrace Functions sandbox.
+
 ### Visualization variety — required mix
 
 A monolithic stack of donut + area charts is visually monotonous. Aim
-for a deliberate mix across the dashboard:
+for a deliberate mix across the dashboard. All of the following are `visualization`
+values on a `data` (or `code`) tile:
 
 - **`pieChart`** — small categorical share (3–5 slices).
 - **`donutChart`** — same, when you want a center total.
@@ -268,13 +351,25 @@ for a deliberate mix across the dashboard:
 - **`honeycomb`** — many small categories (6+); needs
   `visualizationSettings.honeycomb.dataMappings.value = "<count_field>"`.
 - **`lineChart` / `areaChart`** — single or multi-series timeseries.
-- **`table` / `dataPage`** — raw rows.
-- **`bubbleMap` / `dotMap`** — geo.
+- **`table` / `dataPage`** — raw rows; `dataPage` adds pagination.
+- **`bubbleMap` / `dotMap`** — geo scatter on a world map.
+- **`funnel`** — sequential conversion steps.
+- **`scatterplot`** — two-variable correlation (x vs y field).
 - **`singleValue`** — KPIs. Apply a **gauge feel** by attaching three
   threshold `colorRules` with `colorThresholdTarget: "background"` and
   `customColor` from `var(--dt-colors-charts-status-{success,warning,critical}-default, ...)`.
-  Comparator `≥` (Unicode), highest threshold first. Gen 3 has no
-  separate `gauge` viz type — this IS the gauge.
+  Comparator `≥` (Unicode). **`colorRules` ordering with `≥`: lowest threshold value first,
+  highest threshold value last** — Dynatrace applies the last matching rule, so the highest
+  threshold must be at the bottom to "win". Reversing this order causes all values to show the
+  wrong color. Gen 3 has no separate `gauge` viz type — this IS the gauge.
+
+- **`singleValue` `unitsOverrides` — always use `unitCategory: "unspecified"` + `baseUnit: "count"` for raw numeric KPIs** (latency ms, temperature °C, raw counts, etc.). Two failure modes:
+  1. `unitCategory: "time"` auto-scales the display (1000ms → "1s") but evaluates `colorRule` thresholds against the **raw query value** — a 1 000ms latency fires the ≥500 threshold and shows red even though the tile reads "1s".
+  2. Omitting `unitCategory` with `delimiter: true` abbreviates numbers (1000 → "1k").
+  Correct form for any raw numeric KPI:
+  ```json
+  { "unitCategory": "unspecified", "baseUnit": "count", "displayUnit": null, "decimals": 1, "suffix": " ms" }
+  ```
 
 When swapping a donut/pie to bar/categoricalBar/honeycomb, **strip
 `visualizationSettings.chartSettings.circleChartSettings`**. Leaving it
@@ -339,23 +434,26 @@ fetch bizevents | makeTimeseries revenue = sum(amount), by:{venue}, bins:20
 
 ### Multi-select variable filters
 
-Define each variable as `type: "query"`, `multiple: true`, sourced via
-`| dedup <field>` against the company's `event.provider`. Filter tiles
+Define each variable as `type: "query"`, `multiple: true`, **`defaultSelectAll: true`**,
+sourced via `| dedup <field>` against the company's `event.provider`. Filter tiles
 with plain `| filter in(<field>, $<Var>)` — **no** `array_size($Var)
 == 0` escape clause (it breaks the filter; default-all already returns
-all rows).
+all rows when `defaultSelectAll: true` is set).
 
 Rules:
-1. **Insert filters BEFORE aggregation pipes** (`makeTimeseries`,
+1. **Always include `"defaultSelectAll": true`** on every query variable. Without it, Dynatrace
+   may pre-select the first query result rather than all values, and the dashboard opens with
+   filtered data.
+2. **Insert filters BEFORE aggregation pipes** (`makeTimeseries`,
    `summarize`, `fields*`, `sort`, `limit`). After `makeTimeseries` the
    source field no longer exists, so a trailing
    `| filter in(region, $Region)` silently drops every row.
-2. **Per-tile field availability matters.** Compute the **intersection**
+3. **Per-tile field availability matters.** Compute the **intersection**
    of filterable fields across every `event.type` referenced by the
    tile. Only inject filters for fields shared by ALL referenced types.
    Tiles whose events share no filterable dimensions (section dividers,
    funnel-only events, the global map) correctly get no variable filter.
-3. Variables are **company-specific**. Pick 3–5 dimensions that map to
+4. Variables are **company-specific**. Pick 3–5 dimensions that map to
    the operating model (e.g. `$Banner`, `$Region`, `$Department`,
    `$Channel`, `$Store`). Avoid more than ~5 — the bar gets crowded.
 
@@ -485,7 +583,7 @@ Pre‑implementation:
 - [ ] Logo URL gathered **AND verified** via `curl -sIL` (must return
       `HTTP 200` + `content-type: image/*`).
 - [ ] 5–6 section colors chosen from brand/theme.
-- [ ] 3–5 dashboard variables chosen (multi-select, query-driven).
+- [ ] 3–5 dashboard variables chosen (multi-select, query-driven, **`"defaultSelectAll": true`** on each).
 
 Query validation:
 - [ ] Each DQL query tested in the DQL editor with `| limit 10`.
@@ -500,7 +598,9 @@ Tile creation:
       `h:8`**.
 - [ ] Section dividers (`h:1`, colored).
 - [ ] KPI tiles (`h:2`, under each section); 3–4 use `singleValue` +
-      threshold `colorRules` for gauge feel.
+      threshold `colorRules` for gauge feel. `≥` rules ordered **lowest value first, highest last**.
+- [ ] All `singleValue` `unitsOverrides` use `unitCategory: "unspecified"` + `baseUnit: "count"` — never `unitCategory: "time"` on latency/duration tiles (breaks colorRule threshold comparison).
+- [ ] `bubbleMap` uses `"regions": { "showRegions": false }` — no region codes.
 - [ ] Chart tiles (`h:4+`, under KPIs).
 - [ ] **Visualization mix:** at least 4 distinct chart types across the
       board (e.g. `pieChart`, `barChart`, `categoricalBar`, `honeycomb`,

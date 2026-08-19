@@ -80,10 +80,47 @@ When invoked, the agent asks for (or infers from the user's request):
 - **Logo URL** (optional) — if missing, search the web for a public logo URL
   and confirm with the user before using it. 
 
-### Logo URL — VERIFY BEFORE EMBEDDING
+### Gathering inputs — ask before starting
 
-Never embed a logo without first confirming the URL serves an image to a
-cross-origin browser. Run:
+Before generating any files, confirm the user has these (all optional — never block):
+
+- **Dynatrace Hub link** — `https://www.dynatrace.com/hub/detail/<technology>/`.
+  Used to find official metric names and pre-built extensions. If not provided,
+  search https://www.dynatrace.com/hub/ yourself.
+- **Logo image or URL** — used for the dashboard image tile. If not provided,
+  search the web for an official brand logo and verify it (see below). If nothing
+  reliable is found, use a text-only markdown header.
+
+### Logo — `image` tile type (confirmed schema)
+
+```json
+{
+  "type": "image",
+  "imageSettings": {
+    "defaultSource": "/platform/document/v1/documents/<technology>-logo/content",
+    "sizing": "fit",
+    "horizontalAlignment": "center",
+    "verticalAlignment": "center"
+  }
+}
+```
+
+Upload the logo using **`upload-logo.sh`** (no Python required — uses only `base64`, `fold`, `sed`, `dtctl`):
+
+```bash
+curl -sL "<logo-url>" -o <technology>-logo.png
+bash upload-logo.sh <technology>-logo.png <technology>-logo "Technology Dashboard Logo"
+```
+
+Copy `upload-logo.sh` from `dashboards/nvidia-dcgm/` into each new `dashboards/<Technology>/` folder.
+
+`sizing`: `"fit"` (letterbox) or `"fill"` (crop to fill). Document ID: `<technology>-logo`.
+
+---
+
+### Logo URL — verify before downloading
+
+Never use a logo URL without first confirming the URL serves an image. Run:
 
 ```bash
 curl -sIL -A 'Mozilla/5.0' -H 'Referer: https://apps.dynatrace.com' '<URL>' \
@@ -258,10 +295,32 @@ least one event type.
 above the fold. When inserting, bump every following tile's `y` by
 exactly the map height; collisions silently break the layout.
 
+**`regions` config — always set `showRegions: false`:**
+```json
+"regions": { "showRegions": false }
+```
+Never specify region codes (`"US"`, `"WORLD"`, etc.). Mixed or unknown codes
+cause "an error occured: Failed to load map data". With `showRegions: false`
+the map auto-fits to the data points regardless of geography.
+
+### Gen 3 tile types
+
+There are three **tile types** (`"type"` field in the tile object):
+
+| Tile type | Purpose | Key fields |
+|-----------|---------|-----------|
+| `data` | DQL-powered visualization | `query`, `visualization`, `visualizationSettings`, `davis` |
+| `markdown` | Text, headers, embedded images | `content` (CommonMark; `![alt](data:image/...;base64,...)` for logos) |
+| `code` | JS function via Dynatrace Functions runtime | `input` (JS string importing `@dynatrace-sdk/*`), `visualization`, `visualizationSettings` |
+| `image` | Native image tile with fill/fit/align sizing | `imageSettings.defaultSource` = `/platform/document/v1/documents/<id>/content`; image stored in Documents API |
+
+The `code` tile is useful for data not reachable by DQL: USQL, metric selectors, Classic API, external REST APIs.
+
 ### Visualization variety — required mix
 
 A monolithic stack of donut + area charts is visually monotonous. Aim
-for a deliberate mix across the dashboard:
+for a deliberate mix across the dashboard. All of the following are `visualization`
+values on a `data` (or `code`) tile:
 
 - **`pieChart`** — small categorical share (3–5 slices).
 - **`donutChart`** — same, when you want a center total.
@@ -272,13 +331,25 @@ for a deliberate mix across the dashboard:
 - **`honeycomb`** — many small categories (6+); needs
   `visualizationSettings.honeycomb.dataMappings.value = "<count_field>"`.
 - **`lineChart` / `areaChart`** — single or multi-series timeseries.
-- **`table` / `dataPage`** — raw rows.
-- **`bubbleMap` / `dotMap`** — geo.
+- **`table` / `dataPage`** — raw rows; `dataPage` adds pagination.
+- **`bubbleMap` / `dotMap`** — geo scatter on a world map.
+- **`funnel`** — sequential conversion steps.
+- **`scatterplot`** — two-variable correlation (x vs y field).
 - **`singleValue`** — KPIs. Apply a **gauge feel** by attaching three
   threshold `colorRules` with `colorThresholdTarget: "background"` and
   `customColor` from `var(--dt-colors-charts-status-{success,warning,critical}-default, ...)`.
-  Comparator `≥` (Unicode), highest threshold first. Gen 3 has no
-  separate `gauge` viz type — this IS the gauge.
+  Comparator `≥` (Unicode). **`colorRules` ordering with `≥`: lowest threshold value first,
+  highest threshold value last** — Dynatrace applies the last matching rule, so the highest
+  threshold must be at the bottom to "win". Reversing this order causes all values to show the
+  wrong color. Gen 3 has no separate `gauge` viz type — this IS the gauge.
+
+- **`singleValue` `unitsOverrides` — always use `unitCategory: "unspecified"` + `baseUnit: "count"` for raw numeric KPIs** (latency ms, temperature °C, raw counts, etc.). Two failure modes:
+  1. `unitCategory: "time"` auto-scales the display (1000ms → "1s") but evaluates `colorRule` thresholds against the **raw query value** — a 1 000ms latency fires the ≥500 threshold and shows red even though the tile reads "1s".
+  2. Omitting `unitCategory` with `delimiter: true` abbreviates numbers (1000 → "1k").
+  Correct form for any raw numeric KPI:
+  ```json
+  { "unitCategory": "unspecified", "baseUnit": "count", "displayUnit": null, "decimals": 1, "suffix": " ms" }
+  ```
 
 When swapping a donut/pie to bar/categoricalBar/honeycomb, **strip
 `visualizationSettings.chartSettings.circleChartSettings`**. Leaving it
@@ -343,11 +414,11 @@ fetch bizevents | makeTimeseries revenue = sum(amount), by:{venue}, bins:20
 
 ### Multi-select variable filters
 
-Define each variable as `type: "query"`, `multiple: true`, sourced via
-`| dedup <field>` against the company's `event.provider`. Filter tiles
+Define each variable as `type: "query"`, `multiple: true`, **`defaultSelectAll: true`**,
+sourced via `| dedup <field>` against the company's `event.provider`. Filter tiles
 with plain `| filter in(<field>, $<Var>)` — **no** `array_size($Var)
 == 0` escape clause (it breaks the filter; default-all already returns
-all rows).
+all rows when `defaultSelectAll: true` is set).
 
 Rules:
 1. **Insert filters BEFORE aggregation pipes** (`makeTimeseries`,
@@ -501,7 +572,8 @@ Tile creation:
       `h:8`**.
 - [ ] Section dividers (`h:1`, colored).
 - [ ] KPI tiles (`h:2`, under each section); 3–4 use `singleValue` +
-      threshold `colorRules` for gauge feel.
+      threshold `colorRules` for gauge feel. `≥` rules ordered **lowest value first, highest last**.
+- [ ] `bubbleMap` uses `"regions": { "showRegions": false }` — no region codes.
 - [ ] Chart tiles (`h:4+`, under KPIs).
 - [ ] **Visualization mix:** at least 4 distinct chart types across the
       board (e.g. `pieChart`, `barChart`, `categoricalBar`, `honeycomb`,
