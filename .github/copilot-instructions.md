@@ -1,34 +1,36 @@
 # GitHub Copilot Instructions — Business Event Generator
 
-This repository is an **agent**: it generates a Dynatrace Gen 3 KPI dashboard
-and a 30‑minute BizEvents injector for any company a user names.
+This repository is an **agent**: it generates a Dynatrace Gen 3 metric dashboard, metric injector, OpenPipeline entity pipeline, and Smartscape entity topology for a technology a user names.
 
 > **Read [AGENTS.md](../AGENTS.md) first.** It is the canonical instruction
 > set. The notes below are Copilot‑specific reinforcement.
 
-## When the user says "generate a dashboard for <company>"
+## When the user says "generate a dashboard for <technology>"
 
-1. Confirm `dtctl auth whoami` works. If not, stop and ask the user to run
-   `scripts/check-prereqs.sh`.
-2. **Show the active tenant context** (`dtctl ctx current` + `dtctl auth whoami`)
-   and ask the user to confirm before any `apply`/`exec`. Never silently
-   target whatever context is active.
-3. Create `dashboards/<Company>/` with these files:
-   - `<company>-dashboard-v1.json`
-   - `<company>-injector.js`
+1. Confirm `dtctl auth whoami` works. If not, stop and ask the user to run `scripts/check-prereqs.sh`.
+2. **Show the active tenant context** (`dtctl ctx current` + `dtctl auth whoami`) and ask the user to confirm before any `apply`/`exec`. Never silently target whatever context is active.
+3. Create `dashboards/<Technology>/` with these files:
+   - `<technology>-dashboard-v1.json`
+   - `<technology>-injector.js`
+   - `<technology>-entity-creator.js`
+   - `<technology>-openpipeline.json`
+   - `<technology>-openpipeline-routing.json`
    - `README.md`, `LEARNINGS.md`, `SALES-PITCH.md`
-3. Mirror the shape of files in `.example/`.
+4. Apply the OpenPipeline settings with `dtctl apply` before running the workflow — entities are created by the pipeline as BizEvents arrive.
+5. Mirror the shape of files in `.example/`.
 
 ## Hard rules
 
-- **Gen 3 dashboard JSON only** — match `example/example_dashboard.json`.
-- **Map tile is required** — `bubbleMap` over geo coordinates emitted by the
-  injector.
+- **Gen 3 dashboard JSON only** — match `.example/example_dashboard.json`.
+- **Map tile is optional** — `bubbleMap` over geo coordinates emitted by the injector.
 - **Logo + Title** are TWO markdown tiles (`w:6,h:2` + `w:18,h:2`).
 - **Charts use `h:4`+, KPIs use `h:2`.**
 - **Time charts use `makeTimeseries`** — never `summarize` into a chart.
-- All queries filter by `event.provider == "<company>.event.provider"`.
+- All queries filter by `event.provider == "<technology>.event.provider"`.
 - Injector emits 3,000–5,000 events/run, batched in 500‑event POSTs.
+- **Entities via OpenPipeline only on Gen 3 tenants** — classic entity APIs unavailable. `CUSTOM_DEVICE` nodeType is blocked; use `CUSTOM_<TECHNOLOGY>_<ENTITY>`.
+- **MINT line format** — commas as dimension separators, NOT semicolons: `metric.key,dim1=val1 value ts`.
+- **Entity visibility** — OpenPipeline entities appear in Explorer Classic only, not Explorer New.
 
 ## Workflow rule (do not violate)
 
@@ -36,10 +38,10 @@ There is **one injector workflow per tenant**. Always look for it first:
 
 ```bash
 dtctl get workflows -o json --plain | \
-  jq '.[] | select(.title | test("BizEvents Dashboard Generator|injector"; "i"))'
+  jq '.[] | select(.title | test("Technology Dashboard Generator|injector"; "i"))'
 ```
 
-- **Found?** Add a new task `<company>_v1` to it and `dtctl apply -f`.
+- **Found?** Add a new task `<technology>_v1` to it and `dtctl apply -f`.
 - **Not found?** (first‑ever run on this tenant) create from
   `.example/example_data_injector.workflow.json`.
 

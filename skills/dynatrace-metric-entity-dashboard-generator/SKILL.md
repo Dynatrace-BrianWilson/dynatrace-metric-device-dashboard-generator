@@ -1,29 +1,29 @@
 ---
-name: dynatrace-kpi-dashboard-generator
-description: Generate a Dynatrace Gen 3 **KPI dashboard** (15–20 business KPIs, required map tile, branded section dividers) and a matching 30‑minute BizEvents injector for a named company, then deploy both via `dtctl`. Use this skill ONLY when the user explicitly asks for a Dynatrace KPI dashboard, business-event KPI demo, BizEvents injector, or a "KPI dashboard for <company>" — do NOT use for generic Dynatrace dashboards (SRE, infra, k8s, services, RUM) or for editing existing non-KPI dashboards. Triggers include phrases like "generate a KPI dashboard", "build a BizEvents demo for <company>", "spin up a KPI dashboard + injector", "/generate-kpi-dashboard". Requires `dtctl` authenticated to a Dynatrace Gen 3 tenant.
+name: dynatrace-metrics-metric-dashboard-generator
+description: Generate a Dynatrace Gen 3 **KPI dashboard** (15–20 KPIs, optional map tile, branded section dividers), a relevant dynatrace entity to map metrics and logs to and a matching 30‑minute data injector for a named technology, then deploy both via `dtctl`. Do not use this skill if a user is triggering the generate-kpi-dashboard generator. Triggers include phrases like "generate a metric dashboard", "build a metrics demo for <technology>", "spin up a metrics dashboard + injector", "/generate-technology-dashboard". Requires `dtctl` authenticated to a Dynatrace Gen 3 tenant.
 ---
 
-# Business Event Generator Agent
+# Metrics & Log Event Generator Agent
 
 Canonical instructions for any agent (Claude Code, GitHub Copilot, Cursor,
-etc.) running in this repository. The agent's job: for any company the user
+etc.) running in this repository. The agent's job: for any technology the user
 names, generate a Dynatrace **Gen 3 KPI dashboard** and a **30‑minute
-BizEvents injector**, deploy them with `dtctl`, and verify ingestion.
+metric and log (if logs are applicable) injector**, and create a dynatrace entity the metrics and logs are associated with, deploy them with `dtctl`, and verify ingestion.
 
 ---
 
 ## Role & Objective
 
-You are a Dynatrace Solutions Engineer. For a given company:
+You are a Dynatrace Solutions Engineer. For a given technology:
 
-1. Research industry‑specific KPIs relevant to their business (15–20).
-2. Build a **Gen 3 dashboard** with real‑time KPI tiles, charts, and a
-   required map tile.
-3. Create a JavaScript injector that streams 3,000–5,000 business events per
-   30‑minute run.
-4. Deploy both to Dynatrace via `dtctl`, **adding a task to the existing
+1. Research technology KPIs relevant to the technology provided (15–20).
+2. Include a search of the dynatrace hub - https://www.dynatrace.com/hub/ - for any pre-configured extensions, technology, or application information.
+3. Build a **Gen 3 dashboard** with real‑time KPI tiles, charts, and if applicable, a map tile. The metrics used should be the most relevant for the technology, based on research.
+4. Create a JavaScript injector that streams 3,000–5,000 metric events per
+   30‑minute run, and if applicable, 2000 log entries per run.
+5. Deploy both to Dynatrace via `dtctl`, **adding a task to the existing
    injector workflow** (never creating a second injector workflow).
-5. Document patterns in the company folder for reuse.
+6. Document patterns in the company folder for reuse.
 
 ---
 
@@ -73,11 +73,12 @@ successfully against the same tenant earlier in the session.
 
 When invoked, the agent asks for (or infers from the user's request):
 
-- **Company name** (required) — used for folder name, dashboard title, and
+- **Technology** (required) — used for folder name, dashboard title, and
   `event.provider` (e.g. `acme.event.provider`).
+- **Dynatrace Hub Link** (optional) - research hint for metrics and logs  
 - **Industry / business domain** (optional) — research hint for KPI choice.
 - **Logo URL** (optional) — if missing, search the web for a public logo URL
-  and confirm with the user before using it.
+  and confirm with the user before using it. 
 
 ### Logo URL — VERIFY BEFORE EMBEDDING
 
@@ -112,15 +113,18 @@ instead of guessing.
 
 ## Output layout
 
-For every new company create a folder under `dashboards/`:
+For every new technology create a folder under `dashboards/`:
 
 ```
-dashboards/<Company>/
-  <company>-dashboard-v1.json     # Gen 3 dashboard JSON
-  <company>-injector.js           # 30-min BizEvents injector
-  README.md                       # overview, dashboard ID, workflow ID
-  LEARNINGS.md                    # iteration notes (DQL patterns, pitfalls)
-  SALES-PITCH.md                  # 1-page value pitch for sales teams
+dashboards/<Technology>/
+  <Technology>-dashboard-v1.json          # Gen 3 dashboard JSON
+  <Technology>-injector.js               # 30-min BizEvents metrics/logs injector
+  <Technology>-entity-creator.js         # Workflow task: MINT ingest to associate metrics with entities
+  <Technology>-openpipeline.json         # OpenPipeline pipeline settings (smartscapeNode extraction)
+  <Technology>-openpipeline-routing.json # OpenPipeline routing rule (routes events to topology pipeline)
+  README.md                              # overview, dashboard ID, workflow ID, entity IDs
+  LEARNINGS.md                           # DQL patterns, pitfalls, entity creation findings
+  SALES-PITCH.md                         # 1-page value pitch for sales teams
 ```
 
 File naming: lower‑case company slug, hyphen‑separated. Versioned dashboards
@@ -131,26 +135,20 @@ mirror the version (e.g. `acme_v1`, `acme_v2`).
 
 ## Reference assets (read these before generating)
 
-- `reference/example_dashboard.json` — Gen 3 dashboard
-  JSON shape: tiles, layouts, variables, map tile, section dividers,
-  category overrides.
-- `reference/example_data_injector.workflow.json` —
-  Workflow + JS task shape (schedule, ownerType, action type, position).
-- `reference/example-injector.js` — Realistic injector
-  JS template: event helpers, batched ingest, cluster/region weights, geo
-  coords, schema conventions.
-
-The agent must **mirror the structure** of these examples.
+## - `.example/example_dashboard.json` — Gen 3 dashboard
+##   JSON shape: tiles, layouts, variables, map tile, section dividers, category overrides.
+## - `.example/example_data_injector.workflow.json` — Workflow + JS task shape (schedule, ownerType, action type, position).
+## - `.example/example-injector.js` — Realistic injector JS template: event helpers, batched ingest, cluster/region weights, geo coords, schema conventions.
+## The agent must **mirror the structure** of these examples.
 
 ---
 
 ## Phase 1 — Planning & Research
 
-Identify primary business processes (gaming, hospitality, manufacturing,
-sales, operations, etc.). For each, define:
+Identify primary use cases, common problem, and important metrics. For each, define:
 
-- KPIs (revenue, utilization, satisfaction, response time, etc.).
-- Event types that map to those KPIs (transactions, state changes, service
+- KPIs (CPU, threads, queue, throttling, etc).
+- Event types that map to those KPIs (latency, state changes, service
   requests, telemetry).
 - Realistic per‑run volume targets (15–20 event types totaling
   3,000–5,000 events per 30‑minute run).
@@ -171,7 +169,7 @@ Two side‑by‑side markdown tiles (NOT one combined tile, NOT HTML):
 
 "41":  # Title tile
   type: markdown
-  content: "# <Company> | Operations Dashboard\n\nReal-time KPI monitoring..."
+  content: "# <Technology> | Operations Dashboard\n\nReal-time KPI monitoring..."
   layout: { x: 6, y: 0, w: 18, h: 2 }
 ```
 
@@ -184,13 +182,13 @@ Use a `singleValue` data tile with `data record(section="...")`, height
 `h:1`, full width `w:24`, distinct brand‑appropriate background color per
 section.
 
-Suggested palette (override per company brand):
-- Gaming: `#D4AF37` (Gold)
-- Hospitality: `#1E90FF` (Blue)
-- Dining/F&B: `#FF6347` (Tomato Red)
-- Guest Experience: `#9B59B6` (Purple)
+Suggested palette (override per technology/company brand):
+- network: `#D4AF37` (Gold)
+- service technology: `#1E90FF` (Blue)
+- database: `#FF6347` (Tomato Red)
+- AI: `#9B59B6` (Purple)
 - Operations/Facilities: `#34495E` (Slate)
-- Summary/KPI: `#DAA520` (Dark Gold)
+- virtualization: `#DAA520` (Dark Gold)
 
 Example divider:
 
@@ -248,11 +246,12 @@ Minimize vertical gaps for a professional appearance:
 
 ### Map tile — REQUIRED, ABOVE THE FOLD
 
-Every dashboard must include the most relevant map tile, a `bubbleMap`,
+Every dashboard can include the most relevant map tile, a `bubbleMap`,
 `dotMap`, `connectionMap`, or `chloropleth` tile, fed by an event type
 that emits `geo.location.latitude` and `geo.location.longitude` (cluster,
 region, site, or store). The injector must populate these fields for at
-least one event type. See tile `30` in `example_dashboard.json` for shape.
+least one event type. 
+# See tile `30` in `example_dashboard.json` for shape.
 
 **Place the map immediately under the header** — full width (`w:24`,
 `h:8`) at `y:2`, before the executive summary. Geographic context belongs
@@ -289,7 +288,7 @@ in makes the new chart render blank.
 
 ## Phase 3 — DQL query patterns
 
-Always filter by `event.provider == "<company>.event.provider"` and use the
+Always filter by `event.provider == "<technology>.event.provider"` and use the
 field aliases from your event schema (snake_case).
 
 ### Pattern → visualization
@@ -381,18 +380,91 @@ Use the `dt-app-dashboards`, `dt-dql-essentials`, `dt-app-notebooks`, and
 
 ---
 
+## Phase 3 — Create Dynatrace entities (Gen 3 / Grail tenants)
+
+On Gen 3 / Grail-native tenants the classic entity APIs are unavailable. The
+only reliable path to create topology entities from BizEvents is
+**OpenPipeline `smartscapeNode` processors**.
+
+### How it works
+
+1. Create a `builtin:openpipeline.bizevents.pipelines` settings object with
+   one or more `smartscapeNodeExtraction.processors` of `type: "smartscapeNode"`.
+2. Create a `builtin:openpipeline.bizevents.routing` settings object to route
+   the technology's events (matched by `event.provider`) to that pipeline.
+3. Apply both with `dtctl apply -f`.
+4. As BizEvents arrive the pipeline extracts Smartscape nodes automatically.
+   Entity IDs are written back to the processed event.
+
+### `smartscapeNode` processor key fields
+
+```json
+{
+  "id": "extract-<entity-slug>",
+  "type": "smartscapeNode",
+  "enabled": true,
+  "matcher": "event.type == \"<event.type that carries entity fields>\"",
+  "smartscapeNode": {
+    "extractNode": true,
+    "nodeType": "CUSTOM_<ENTITY_TYPE>",
+    "nodeIdFieldName": "dt.entity.custom_<entity_type>",
+    "idComponents": [
+      { "idComponent": "<prefix>", "referencedFieldName": "<unique_field>" }
+    ],
+    "nodeName": {
+      "type": "field",
+      "field": { "sourceFieldName": "<display_name_field>", "defaultValue": "Unknown" }
+    },
+    "fieldsToExtract": [
+      { "referencedFieldName": "<event_field>", "fieldName": "<entity_property>" }
+    ]
+  }
+}
+```
+
+**Critical constraints:**
+- `nodeType` must be uppercase `[A-Z][A-Z0-9_]+`. `CUSTOM_DEVICE` is **explicitly blocked** — use any other `CUSTOM_*` type (e.g. `CUSTOM_GPU_CLUSTER`, `CUSTOM_DB_INSTANCE`).
+- `requiredDimensions.valuePattern` in routing must use `$eq(value)` or `$prefix(value)` syntax — raw strings cause HTTP 400.
+- Entities appear in **Explorer Classic** (Infrastructure & Operations app → Smartscape). They do NOT appear in Explorer New without an Extension Framework 2.0 (EF2) extension.
+
+### Entity type guidance
+
+| Technology type | Recommended `nodeType` |
+|----------------|----------------------|
+| Network device | `CUSTOM_NETWORK_DEVICE` |
+| Infrastructure (compute, GPU, storage) | `CUSTOM_<TECHNOLOGY>_NODE` / `CUSTOM_<TECHNOLOGY>_CLUSTER` |
+| Database / data platform | `CUSTOM_DB_INSTANCE` |
+| Process / middleware | `CUSTOM_<TECHNOLOGY>_PROCESS` |
+| Any other | Propose `CUSTOM_<TECHNOLOGY>_<ENTITY>` and confirm with user |
+
+### MINT metric-entity association
+
+Also create `<technology>-entity-creator.js` as a second workflow task that
+pushes MINT metric lines with `dt.entity.custom_<type>=<id>` dimensions. This
+pre-associates MINT metrics with the entity ID space.
+
+MINT line format (commas as separators — NOT semicolons):
+```
+metric.key,dim1=val1,dim2=val2 value timestampMs
+```
+
+Verify entity creation:
+```bash
+dtctl query "smartscapeNodes \"CUSTOM_<TYPE>\", from:now()-1h | limit 20" --plain
+```
+
 ## Phase 4 — Event injector JavaScript
 
-Use `reference/example-injector.js` and the `script`
+Use `.example/example-injector.js` and the `script`
 field in `example_data_injector.workflow.json` as the structural template.
 
 ### Requirements
-
+- **Data mapping** data - metrics and logs - should be attached to the entity or entities created.
 - **Event types:** 15–20 different types
   (`gaming.transaction`, `guest.checkin`, `equipment.telemetry`, ...).
 - **Field schema:** snake_case for all fields
   (`gaming_venue`, `occupancy_percent`, ...).
-- **Realistic values:** match the business domain (currency for prices,
+- **Realistic values:** match the technology domain (CPU level, latency in ms or low seconds, temperature, 
   0–100 for percentages, plausible ranges).
 - **Volume:** 3,000–5,000 events per execution (~100+ per event type).
 - **Geo fields:** at least one event type emits
@@ -408,7 +480,7 @@ field in `example_data_injector.workflow.json` as the structural template.
 ## Phase 5 — Dashboard implementation checklist
 
 Pre‑implementation:
-- [ ] Meaningful dashboard title (e.g. `<Company> | Operations Dashboard`).
+- [ ] Meaningful dashboard title (e.g. `<Technology> | Operations Dashboard`).
 - [ ] 15–20 KPIs researched and mapped to event types.
 - [ ] Layout sketched (sections, tile positions).
 - [ ] Logo URL gathered **AND verified** via `curl -sIL` (must return
@@ -455,7 +527,7 @@ Styling & validation:
 
 ## Phase 6 — Workflow & deployment (CRITICAL RULES)
 
-The injector workflow is **shared across all companies** in a tenant. There
+The injector workflow is **shared across all technologies** in a tenant. There
 is exactly one injector workflow per tenant; new companies are added as
 **additional tasks** inside it.
 
@@ -463,7 +535,7 @@ is exactly one injector workflow per tenant; new companies are added as
 
 1. **Apply the dashboard:**
    ```bash
-   dtctl apply -f "dashboards/<Company>/<company>-dashboard-v1.json"
+   dtctl apply -f "dashboards/<technology>/<company>-dashboard-v1.json"
    ```
    Capture the returned dashboard ID.
 
@@ -478,7 +550,13 @@ is exactly one injector workflow per tenant; new companies are added as
    "Untitled dashboard" with name and ID detached. Re-applying with the
    wrapper fixes it in place (`ACTION = updated`).
 
-2. **Search for the existing injector workflow first:**
+2. **Apply OpenPipeline entity settings:**
+   ```bash
+   dtctl apply -f "dashboards/<technology>/<technology>-openpipeline.json" --plain
+   dtctl apply -f "dashboards/<technology>/<technology>-openpipeline-routing.json" --plain
+   ```
+
+3. **Search for the existing injector workflow first:**
    ```bash
    dtctl get workflows -o json --plain | \
      jq '.[] | select(.title | test("BizEvents Dashboard Generator|KPI Data Injector|injector"; "i"))'
@@ -486,21 +564,21 @@ is exactly one injector workflow per tenant; new companies are added as
    Prefer the workflow titled `1.BizEvents Dashboard Generator`. If multiple
    match, confirm with the user.
 
-3. **If a workflow exists (the normal case):**
+4. **If a workflow exists (the normal case):**
    - `dtctl get workflow <id> -o json --plain > .tmp/workflow.json`
    - Append a new task keyed `<company>_v1` (or `_v2` on iteration).
    - Use a **unique** `position.{x, y}` — duplicates produce a 400 error.
    - Set `predecessors: []` so tasks run in parallel.
    - `dtctl apply -f .tmp/workflow.json`
 
-4. **If no workflow exists (first run on a brand‑new tenant only):**
-   - Use `reference/example_data_injector.workflow.json`
+5. **If no workflow exists (first run on a brand‑new tenant only):**
+   - Use `.example/example_data_injector.workflow.json`
      as the template.
    - Replace its single task with the new company's task; rename the
      workflow `1.BizEvents Dashboard Generator`.
    - `dtctl apply -f` it; capture the workflow ID.
 
-5. **Execute and verify:**
+6. **Execute and verify:**
    ```bash
    dtctl exec workflow <id>
    dtctl describe workflow-execution <exec-id>   # wait for SUCCESS
@@ -512,7 +590,7 @@ is exactly one injector workflow per tenant; new companies are added as
    ```
    The task name is required via the `-t/--task` flag, NOT positional.
 
-6. **Verify ingestion:**
+67 **Verify ingestion:**
    ```dql
    fetch bizevents
    | filter event.provider == "<company>.event.provider"
@@ -543,7 +621,7 @@ For every project, write into the company folder:
 `LEARNINGS.md` template:
 
 ```markdown
-# <Company> Dashboard Learnings
+# <technology> Dashboard Learnings
 
 **Date:** <date>
 **Version:** v1
@@ -575,7 +653,9 @@ For every project, write into the company folder:
 - [ ] Layout is compact (no excessive whitespace).
 - [ ] Workflow execution finished SUCCESS.
 - [ ] 3,000+ events ingested per run.
+- [ ] OpenPipeline settings applied; entities visible in Explorer Classic.
 - [ ] `README.md`, `LEARNINGS.md`, `SALES-PITCH.md` all present.
+- [ ] `<technology>-openpipeline.json` and `<technology>-openpipeline-routing.json` present.
 
 ---
 

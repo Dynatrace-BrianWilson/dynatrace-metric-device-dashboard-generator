@@ -9,19 +9,22 @@ runtime that respects `AGENTS.md`.
 
 ---
 
-## What you get for each company
+## What you get for each technology
 
 ```
-dashboards/<Company>/
-  <company>-dashboard-v1.json     # Gen 3 dashboard (logo, KPIs, charts, map)
-  <company>-injector.js           # 30-min BizEvents injector
-  README.md                       # IDs + deploy commands
-  LEARNINGS.md                    # DQL/layout notes
-  SALES-PITCH.md                  # 1-page value pitch
+dashboards/<Technology>/
+  <technology>-dashboard-v1.json          # Gen 3 dashboard (logo, KPIs, charts, map)
+  <technology>-injector.js               # 30-min BizEvents injector
+  <technology>-entity-creator.js         # Workflow task: MINT ingest for metric-entity association
+  <technology>-openpipeline.json         # OpenPipeline pipeline (smartscapeNode extraction)
+  <technology>-openpipeline-routing.json # OpenPipeline routing rule
+  README.md                              # IDs + deploy commands
+  LEARNINGS.md                           # DQL/layout notes, entity creation findings
+  SALES-PITCH.md                         # 1-page value pitch
 ```
 
 A single shared workflow `1.BizEvents Dashboard Generator` runs every 30
-minutes in your tenant. Each new company is added as a **task** inside that
+minutes in your tenant. Each new technology is added as **tasks** inside that
 one workflow — the agent never creates a second injector workflow.
 
 ---
@@ -31,8 +34,8 @@ one workflow — the agent never creates a second injector workflow.
 Three commands and you're done:
 
 ```bash
-git clone https://github.com/SudoSmitty/dynatrace-kpi-dashboard-generator.git
-cd dynatrace-kpi-dashboard-generator
+git clone https://github.com/Dynatrace-BrianWilson/dynatrace-metric-entity-dashboard-generator.git
+cd dynatrace-metric-entity-dashboard-generator
 ./scripts/install.sh
 ```
 
@@ -41,9 +44,9 @@ The installer takes care of everything:
 - Installs `jq` (if missing).
 - Installs / updates `dtctl`.
 - Installs the `dtctl`, `dynatrace-for-ai`, **and
-  `dynatrace-kpi-dashboard-generator`** agent skills via `npx skills add`.
+  `dynatrace-metric-entity-dashboard-generator`** agent skills via `npx skills add`.
 - If Claude Code (`claude`) is installed, it also installs the Claude
-  plugin so `/generate-kpi-dashboard` works **globally** (any cwd) without
+  plugin so `/generate-metric-dashboard` works **globally** (any cwd) without
   any extra step.
 
 Then authenticate `dtctl` to your tenant and verify:
@@ -67,18 +70,17 @@ skill is loaded globally.
 ### Claude Code
 
 ```
-/generate-kpi-dashboard Acme Corp
+/generate-metric-dashboard NVIDIA GPU
 ```
 
-…or just ask in plain English: *"Generate a KPI dashboard for Acme,
-they're a logistics company."*
+…or just ask in plain English: *"Generate a metric dashboard for NVIDAI GPU."*
 
 ### GitHub Copilot Chat (VS Code)
 
 In agent mode:
 
 ```
-Generate a KPI dashboard for Acme.
+Generate a metric dashboard for NVIDIA
 ```
 
 If you want a slash command in Copilot too, link the prompt file:
@@ -86,7 +88,7 @@ If you want a slash command in Copilot too, link the prompt file:
 ```bash
 mkdir -p "$HOME/Library/Application Support/Code/User/prompts"   # macOS
 ln -sfn "$PWD/.github/prompts/generate-kpi-dashboard.prompt.md" \
-  "$HOME/Library/Application Support/Code/User/prompts/generate-kpi-dashboard.prompt.md"
+  "$HOME/Library/Application Support/Code/User/prompts/generate-metric-dashboard.prompt.md"
 ```
 
 Linux: `~/.config/Code/User/prompts/`. Windows:
@@ -102,16 +104,19 @@ Point your agent at `AGENTS.md`. It is fully self‑contained.
 
 1. Runs `dtctl auth whoami` and `dtctl ctx current`, **shows you the
    tenant**, and waits for confirmation before touching anything.
-2. Asks for company name, industry (optional), logo URL (optional — it'll
+2. Asks for technology, Dynatrace Hub link (optional), Industry / business domain (optional) logo URL (optional — it'll
    search if you don't provide one).
-3. Researches 15–20 industry KPIs and matching event types.
-4. Writes the dashboard JSON, injector JS, README, LEARNINGS, and
-   SALES‑PITCH into `dashboards/<Company>/`.
+3. Researches 15–20 industry KPIs and matching event types and optional logs.
+4. Writes the dashboard JSON, injector JS, entity creator JS, OpenPipeline JSON files, README, LEARNINGS, and SALES‑PITCH into `dashboards/<Technology>/`.
 5. `dtctl apply` the dashboard, captures the ID.
-6. Adds a `<company>_v1` task to the **single** shared injector
-   workflow (`1.BizEvents Dashboard Generator`). Never creates a duplicate.
-7. `dtctl exec workflow <id>` and waits for `SUCCESS`.
-8. Verifies events landed:
+6. `dtctl apply` the OpenPipeline pipeline and routing settings — creates Smartscape entities from BizEvents automatically.
+7. Adds two tasks to the **single** shared injector workflow (`1.Metrics Dashboard Generator`): the BizEvents injector and the entity creator. Never creates a duplicate workflow.
+8. `dtctl exec workflow <id>` and waits for `SUCCESS`.
+9. Verifies events landed and entities are visible in Explorer Classic:
+   ```bash
+   dtctl query "smartscapeNodes \"CUSTOM_<TYPE>\", from:now()-1h | limit 20" --plain
+   ```
+10. Verifies BizEvents landed:
    ```dql
    fetch bizevents
    | filter event.provider == "<company>.event.provider"
@@ -133,13 +138,13 @@ different.
 Just install this one skill (and, optionally, the Claude plugin):
 
 ```bash
-npx skills add SudoSmitty/dynatrace-kpi-dashboard-generator
+npx skills add Dynatrace-BrianWilson/dynatrace-metric-entity-dashboard-generator
 ```
 
 ```bash
 # Optional: also install the /generate-kpi-dashboard slash command in Claude Code
-claude plugin marketplace add SudoSmitty/dynatrace-kpi-dashboard-generator
-claude plugin install dynatrace-kpi-dashboard-generator@dynatrace-kpi-dashboard-generator
+# claude plugin marketplace add SudoSmitty/dynatrace-kpi-dashboard-generator
+# claude plugin install dynatrace-kpi-dashboard-generator@dynatrace-kpi-dashboard-generator
 ```
 
 Updates: `npx skills update` and `claude plugin update …`.
@@ -151,9 +156,9 @@ without re‑publishing, symlink the bundle into your global agent dirs:
 
 ```bash
 mkdir -p ~/.agents/skills ~/.claude/commands
-ln -sfn "$PWD/skills/dynatrace-kpi-dashboard-generator" \
+ln -sfn "$PWD/skills/dynatrace-metric-entity-dashboard-generator" \
   ~/.agents/skills/dynatrace-kpi-dashboard-generator
-ln -sfn "$PWD/.claude/commands/generate-kpi-dashboard.md" \
+ln -sfn "$PWD/.claude/commands/dynatrace-metric-entity-dashboard-generator.md" \
   ~/.claude/commands/generate-kpi-dashboard.md
 ```
 
@@ -178,11 +183,11 @@ winget install jqlang.jq
 # 3. Skills
 npx skills add dynatrace-oss/dtctl
 npx skills add dynatrace/dynatrace-for-ai
-npx skills add SudoSmitty/dynatrace-kpi-dashboard-generator
+npx skills add Dynatrace-BrianWilson/dynatrace-metric-entity-dashboard-generator
 
-# 4. (Optional) Claude Code plugin for /generate-kpi-dashboard slash command
-claude plugin marketplace add SudoSmitty/dynatrace-kpi-dashboard-generator
-claude plugin install dynatrace-kpi-dashboard-generator@dynatrace-kpi-dashboard-generator
+# 4. (Optional) Claude Code plugin for /generate-metric-entity-dashboard slash command
+claude plugin marketplace add Dynatrace-BrianWilson/dynatrace-metric-entity-dashboard-generator
+claude plugin install dynatrace-metric-entity-dashboard-generator@dynatrace-metric-entity-dashboard-generator
 ```
 
 Verify with `bash scripts/check-prereqs.sh` from Git Bash or WSL.
@@ -199,7 +204,7 @@ reference / Windows users / debugging.
 | **`dtctl`** authenticated to a Dynatrace Gen 3 tenant | Deploys dashboards + workflows, runs DQL | `dtctl auth whoami` |
 | **`dtctl` agent skill** | Teaches your agent how to operate `dtctl` | folder in `~/.agents/skills/dtctl/` |
 | **`dynatrace-for-ai` skills** | DQL, dashboards, notebooks domain knowledge | folders `dt-*` in `~/.agents/skills/` |
-| **`dynatrace-kpi-dashboard-generator` skill** | This agent | folder `~/.agents/skills/dynatrace-kpi-dashboard-generator/` |
+| **`dynatrace-metric-entity-dashboard-generator` skill** | This agent | folder `~/.agents/skills/dynatrace-metric-entity-dashboard-generator/` |
 | **`jq`** | Manipulates the workflow JSON when adding tasks | `jq --version` |
 | **Node.js / `npx`** | Required by `npx skills add` | `node --version` |
 | Network access to fetch logo URLs | Header tile branding | — |
@@ -209,19 +214,22 @@ reference / Windows users / debugging.
 
 ---
 
-## What you get for each company
+## What you get for each technology
 
 ```
-dashboards/<Company>/
-  <company>-dashboard-v1.json     # Gen 3 dashboard (logo, KPIs, charts, map)
-  <company>-injector.js           # 30-min BizEvents injector
-  README.md                       # IDs + deploy commands
-  LEARNINGS.md                    # DQL/layout notes
-  SALES-PITCH.md                  # 1-page value pitch
+dashboards/<Technology>/
+  <technology>-dashboard-v1.json          # Gen 3 dashboard (logo, KPIs, charts, map)
+  <technology>-injector.js               # 30-min BizEvents injector
+  <technology>-entity-creator.js         # Workflow task: MINT metrics for entity association
+  <technology>-openpipeline.json         # OpenPipeline settings (smartscapeNode extraction)
+  <technology>-openpipeline-routing.json # OpenPipeline routing rule
+  README.md                              # IDs + deploy commands
+  LEARNINGS.md                           # DQL/layout notes, entity creation findings
+  SALES-PITCH.md                         # 1-page value pitch
 ```
 
 A single shared workflow `1.BizEvents Dashboard Generator` runs every 30
-minutes in your tenant. Each new company is added as a **task** inside
+minutes in your tenant. Each new technology is added as **tasks** inside
 that one workflow — the agent never creates a second injector workflow.
 
 ---
@@ -229,14 +237,13 @@ that one workflow — the agent never creates a second injector workflow.
 ## Hard rules the agent follows
 
 - **Gen 3 dashboard JSON only** (matches `.example/example_dashboard.json`).
-- **Map tile is required** — `bubbleMap` driven by geo coordinates from
-  the injector.
-- **Header is two markdown tiles** — logo (`w:6, h:2`) + title
-  (`w:18, h:2`).
+- **Map tile is required** — `bubbleMap` driven by geo coordinates from the injector.
+- **Header is two markdown tiles** — logo (`w:6, h:2`) + title (`w:18, h:2`).
 - **Charts ≥ `h:4`, KPIs `h:2`.**
-- **`makeTimeseries` for time charts**, `summarize` for KPIs — never feed
-  `summarize` into a chart.
-- **One injector workflow per tenant.** New companies = new tasks.
+- **`makeTimeseries` for time charts**, `summarize` for KPIs — never feed `summarize` into a chart.
+- **One injector workflow per tenant.** New technologies = new tasks.
+- **Entities via OpenPipeline `smartscapeNode` processors** — the classic entity API (`/api/v1/entity/infrastructure/custom`) is not available on Gen 3 tenants. `CUSTOM_DEVICE` type is blocked; use `CUSTOM_<TECHNOLOGY>_<ENTITY>` instead.
+- **Entities appear in Explorer Classic only** — Explorer New requires EF2; do not attempt to register `builtin:monitoredentities.generic.type` entries unless EF2 is in scope.
 - 3,000–5,000 events per 30‑minute run, batched in 500‑event POSTs.
 
 ---
@@ -273,25 +280,25 @@ Where each piece is used:
 | File | Used by |
 |------|---------|
 | [.claude-plugin/marketplace.json](.claude-plugin/marketplace.json) | `claude plugin install` |
-| [skills/dynatrace-kpi-dashboard-generator/SKILL.md](skills/dynatrace-kpi-dashboard-generator/SKILL.md) | `npx skills add` redistributable bundle |
+| [skills/dynatrace-metric-entity-dashboard-generator/SKILL.md](skills/dynatrace-metric-entity-dashboard-generator/SKILL.md) | `npx skills add` redistributable bundle |
 | [AGENTS.md](AGENTS.md) | **Canonical spec** — source for the skill bundle |
 | [.github/copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot (auto‑loaded in this repo) |
-| [.github/prompts/generate-kpi-dashboard.prompt.md](.github/prompts/generate-kpi-dashboard.prompt.md) | Copilot Chat reusable prompt |
-| [.claude/commands/generate-kpi-dashboard.md](.claude/commands/generate-kpi-dashboard.md) | Claude Code slash command source |
+| [.github/prompts/generate-metic-dashboard.prompt.md](.github/prompts/generate-metric-dashboard.prompt.md) | Copilot Chat reusable prompt |
+| [.claude/commands/generate-metric-dashboard.md](.claude/commands/generate-metric-dashboard.md) | Claude Code slash command source |
 | [scripts/build-skill.sh](scripts/build-skill.sh) | Regenerates the skill bundle from `AGENTS.md` + `.example/` |
 
 ---
 
 ## Troubleshooting
 
-- **`dtctl auth whoami` fails** → install or `dtctl auth login` to your
-  tenant before invoking the agent.
-- **400 when applying the workflow** → two tasks share the same
-  `position.{x, y}`; give the new task a unique position.
-- **Map tile is empty** → the injector did not populate
-  `geo.location.latitude` / `geo.location.longitude` for any event type.
-- **Red‑X chart** → query uses `summarize` but the tile is a chart;
-  rewrite with `makeTimeseries`.
-- **Dashboard shows "Untitled"** → the JSON was applied without the
-  `name` / `type` wrapper required by `dtctl apply`.
+- **`dtctl auth whoami` fails** → install or `dtctl auth login` to your tenant before invoking the agent.
+- **400 when applying the workflow** → two tasks share the same `position.{x, y}`; give the new task a unique position.
+- **Map tile is empty** → the injector did not populate `geo.location.latitude` / `geo.location.longitude` for any event type.
+- **Red‑X chart** → query uses `summarize` but the tile is a chart; rewrite with `makeTimeseries`.
+- **Dashboard shows "Untitled"** → the JSON was applied without the `name` / `type` wrapper required by `dtctl apply`.
+- **MINT 400 "failed to parse metric key"** → dimension separators are semicolons instead of commas. Correct format: `metric.key,dim1=val1,dim2=val2 value timestampMs`.
+- **OpenPipeline 400 on routing `requiredDimensions`** → use `$eq(value)` or `$prefix(value)` syntax, not raw strings.
+- **OpenPipeline validation error for `CUSTOM_DEVICE` nodeType** → `CUSTOM_DEVICE` is explicitly blocked. Use `CUSTOM_<TECHNOLOGY>_<ENTITY>` instead.
+- **Entities not visible in Explorer New** → OpenPipeline entities appear in Explorer Classic only. Explorer New requires EF2; do not attempt `builtin:monitoredentities.generic.type` registration without it.
+- **Smartscape Events API 401 from workflow** → The `/platform/ingest/v1/smartscape.events` endpoint is on the non-apps domain and rejects workflow AutomationEngine tokens. Use the OpenPipeline approach instead.
 

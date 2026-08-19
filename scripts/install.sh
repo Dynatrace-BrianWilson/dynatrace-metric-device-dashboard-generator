@@ -89,22 +89,22 @@ else
   yellow "==> Installing dynatrace-for-ai agent skills..."
   npx --yes skills add dynatrace/dynatrace-for-ai || yellow "  (skip if already present)"
 
-  yellow "==> Installing dynatrace-kpi-dashboard-generator skill..."
-  npx --yes skills add SudoSmitty/dynatrace-kpi-dashboard-generator || yellow "  (skip if already present)"
+  yellow "==> Installing dynatrace-metric-entity-dashboard-generator skill..."
+  npx --yes skills add Dynatrace-BrianWilson/dynatrace-metric-entity-dashboard-generator || yellow "  (skip if already present)"
 fi
 
 # ---------- Claude Code plugin (skill + /generate-kpi-dashboard slash command) ----------
 if have claude; then
   yellow "==> Claude Code detected — installing plugin (skill + slash command)..."
-  claude plugin marketplace add SudoSmitty/dynatrace-kpi-dashboard-generator 2>/dev/null \
+  claude plugin marketplace add Dynatrace-BrianWilson/dynatrace-metric-entity-dashboard-generator 2>/dev/null \
     || yellow "  (marketplace already added)"
-  claude plugin install dynatrace-kpi-dashboard-generator@dynatrace-kpi-dashboard-generator 2>/dev/null \
+  claude plugin install dynatrace-metric-entity-dashboard-generator@dynatrace-metric-entity-dashboard-generator 2>/dev/null \
     || yellow "  (plugin already installed)"
-  green "  /generate-kpi-dashboard is now available in Claude Code from any cwd."
+  green "  /generate-metric-dashboard is now available in Claude Code from any cwd."
 else
   yellow "==> Claude Code (\`claude\`) not found — skipping plugin install."
   yellow "    Install Claude Code (https://docs.anthropic.com/claude/claude-code) and re-run"
-  yellow "    this script to enable /generate-kpi-dashboard globally."
+  yellow "    this script to enable /generate-metric-dashboard globally."
 fi
 
 # ---------- Authenticate ----------

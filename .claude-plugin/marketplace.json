@@ -1,14 +1,14 @@
 {
-  "name": "dynatrace-kpi-dashboard-generator",
+  "name": "dynatrace-metric-entity-dashboard-generator",
   "owner": {
-    "name": "SudoSmitty",
-    "url": "https://github.com/SudoSmitty"
+    "name": "Dynatrace-BrianWilson",
+    "url": "https://github.com/Dynatrace-BrianWilson"
   },
   "plugins": [
     {
-      "name": "dynatrace-kpi-dashboard-generator",
-      "description": "Generate a Dynatrace Gen 3 KPI dashboard + 30-min BizEvents injector for any company. Includes the /generate-kpi-dashboard slash command.",
-      "source": "./plugins/dynatrace-kpi-dashboard-generator"
+      "name": "dynatrace-metric-entity-dashboard-generator",
+      "description": "a Dynatrace Gen 3 metric dashboard, metric injector, and device/entity for a technology. Includes the /generate-metric-dashboard slash command.",
+      "source": "./plugins/dynatrace-metric-entity-dashboard-generator"
     }
   ]
 }

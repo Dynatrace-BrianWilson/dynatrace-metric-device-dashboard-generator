@@ -831,7 +831,7 @@
       "21": {
         "title": "\ud83d\udcf1 Mobile Checkout %",
         "type": "data",
-        "query": "fetch bizevents\n| filter event.provider == \"walmart.event.provider\"\n| filter event.type == \"ecom.checkout.completed\"\n| filter in(channel, $Channel)\n| summarize mobile = countIf(device_type == \"mobile\"), total = count()\n| fieldsAdd mobilePct = (toDouble(mobile) / toDouble(total)) * 100",
+        "query": "fetch bizevents\n| filter event.provider == \"walmart.event.provider\"\n| filter event.type == \"ecom.checkout.completed\"\n| filter in(channel, $Channel)\n| summarize mobile = countIf(metric_type == \"mobile\"), total = count()\n| fieldsAdd mobilePct = (toDouble(mobile) / toDouble(total)) * 100",
         "visualization": "singleValue",
         "visualizationSettings": {
           "singleValue": {

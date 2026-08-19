@@ -340,7 +340,7 @@ export default async function () {
       "items_in_cart": randInt(1, 12),
       "cart_value_usd": Number(randFloat(15, 380).toFixed(2)),
       "abandon_stage": choose(["product_page", "cart_review", "shipping", "payment"]),
-      "device_type": choose(["mobile", "desktop", "tablet"])
+      "metric_type": choose(["mobile", "desktop", "tablet"])
     }, now));
   }
 
@@ -355,7 +355,7 @@ export default async function () {
       "checkout_duration_seconds": randInt(20, 240),
       "payment_method": chooseWeighted(PAYMENT_METHODS, PAYMENT_WEIGHTS),
       "order_value_usd": Number(randFloat(15, 420).toFixed(2)),
-      "device_type": choose(["mobile", "desktop", "tablet"])
+      "metric_type": choose(["mobile", "desktop", "tablet"])
     }, now));
   }
 
