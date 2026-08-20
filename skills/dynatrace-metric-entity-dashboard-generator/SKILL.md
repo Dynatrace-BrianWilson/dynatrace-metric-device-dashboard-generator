@@ -517,6 +517,17 @@ fetch bizevents | makeTimeseries revenue = sum(amount), by:{venue}, bins:20
 | fieldsAdd conversion = (toDouble(txns) / toDouble(visitors)) * 100
 ```
 
+❌ WRONG — bare keyword for `sort` direction:
+```dql
+| sort total_calls, direction: desc
+```
+
+✅ CORRECT — `direction` must be a quoted string:
+```dql
+| sort total_calls, direction: "descending"
+| sort total_calls, direction: "ascending"
+```
+
 ### Multi-select variable filters
 
 Define each variable as `type: "query"`, `multiple: true`, **`defaultSelectAll: true`**,
@@ -604,6 +615,7 @@ only reliable path to create topology entities from BizEvents is
 **Critical constraints:**
 - `nodeType` must be uppercase `[A-Z][A-Z0-9_]+`. `CUSTOM_DEVICE` is **explicitly blocked** — use any other `CUSTOM_*` type (e.g. `CUSTOM_GPU_CLUSTER`, `CUSTOM_DB_INSTANCE`).
 - `requiredDimensions.valuePattern` in routing must use `$eq(value)` or `$prefix(value)` syntax — raw strings cause HTTP 400.
+- **OpenPipeline routing `pipelineId`** must be the long base64-encoded settings object ID returned by `dtctl apply`, NOT the human-readable `customId` string. After applying the pipeline settings file, read back the object ID with `dtctl describe settings <id>` and use that value in the routing file.
 - Entities appear in **Explorer Classic** (Infrastructure & Operations app → Smartscape). They do NOT appear in Explorer New without an Extension Framework 2.0 (EF2) extension.
 
 ### Entity type guidance

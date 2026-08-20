@@ -1,23 +1,18 @@
 #!/usr/bin/env bash
 # Upload a logo image to Dynatrace Document Store via dtctl exec function.
 #
-# Uses FormData + Blob (multipart/form-data) — the only format the Document API
-# accepts for binary content. dtctl apply with !!binary YAML does NOT correctly
-# transmit binary image data and results in a broken document.
+# Uses query-params + FormData content — required for this tenant.
+# The two-step approach (JSON POST for metadata, then PUT for content) returns
+# 415 on sprint tenants; use this single-POST form instead.
 #
 # Usage:
-#   ./upload-logo.sh                                      # nvidia-logo.png -> nvidia-dcgm-logo
-#   ./upload-logo.sh logo.png my-tech-logo "My Logo"
-#
-# Arguments:
-#   $1  Image file  (default: nvidia-logo.png)
-#   $2  Document ID (default: nvidia-dcgm-logo)
-#   $3  Description (default: Dashboard logo)
+#   ./upload-logo.sh <image-file> <doc-id> <description>
+#   ./upload-logo.sh sap-abap-logo.png sap-abap-logo "SAP Logo"
 
 set -euo pipefail
 
-FILE="${1:-$(dirname "$0")/nvidia-logo.png}"
-DOC_ID="${2:-nvidia-dcgm-logo}"
+FILE="${1:-$(dirname "$0")/sap-abap-logo.png}"
+DOC_ID="${2:-sap-abap-logo}"
 DESCRIPTION="${3:-Dashboard logo}"
 
 if [[ ! -f "$FILE" ]]; then
@@ -25,7 +20,6 @@ if [[ ! -f "$FILE" ]]; then
   exit 1
 fi
 
-# Detect MIME type from extension
 MIME_TYPE="image/png"
 case "${FILE##*.}" in
   jpg|jpeg) MIME_TYPE="image/jpeg" ;;
@@ -52,7 +46,7 @@ export default async function({ docId, name, description, mimeType, filename, ba
   const metaRes = await fetch(`/platform/document/v1/documents/${docId}/metadata`);
 
   if (metaRes.ok) {
-    // Document exists — update content only (PUT requires optimistic-locking-version)
+    // Document exists — update content via PUT
     const meta = await metaRes.json();
     const version = meta.version;
     const formData = new FormData();
@@ -63,28 +57,19 @@ export default async function({ docId, name, description, mimeType, filename, ba
     );
     const body = await res.text();
     return { action: 'updated', status: res.status, body };
-  } else {
-    // Document does not exist — create it, then upload content
-    const createRes = await fetch('/platform/document/v1/documents', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: docId, name, type: 'image', isPrivate: false, description }),
-    });
-    if (!createRes.ok) {
-      const err = await createRes.text();
-      return { action: 'create_failed', status: createRes.status, body: err };
-    }
-    const created = await createRes.json();
-    const version = created.version;
-    const formData = new FormData();
-    formData.append('content', blob, filename);
-    const res = await fetch(
-      `/platform/document/v1/documents/${docId}/content?optimistic-locking-version=${version}`,
-      { method: 'PUT', body: formData }
-    );
-    const body = await res.text();
-    return { action: 'created', status: res.status, body };
   }
+
+  // Document does not exist — create with query params + content in one POST.
+  // NOTE: JSON-body POST returns 415 on sprint tenants. Use query params instead.
+  const params = new URLSearchParams({ id: docId, name, type: 'image', isPrivate: 'false' });
+  const formData = new FormData();
+  formData.append('content', blob, filename);
+  const res = await fetch(`/platform/document/v1/documents?${params}`, {
+    method: 'POST',
+    body: formData,
+  });
+  const body = await res.text();
+  return { action: res.ok ? 'created' : 'create_failed', status: res.status, body };
 }
 JSEOF
 
