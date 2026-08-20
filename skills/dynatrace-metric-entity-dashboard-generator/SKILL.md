@@ -857,6 +857,7 @@ For every project, write into the company folder:
 5. **Document everything** — `LEARNINGS.md` is the knowledge capital.
 6. **Consistency breeds quality** — follow the example shape exactly.
 7. **One injector workflow per tenant** — always add a task, never duplicate.
+8. **Variables default to `*` (all values)** — every `query`-type dashboard variable must set `"defaultSelectAll": true`. Omitting it causes Dynatrace to pre-select the first result and the dashboard opens with filtered data instead of the full picture.
 
 ---
 
@@ -865,6 +866,7 @@ For every project, write into the company folder:
 - Do not invent dashboard IDs, workflow IDs, or URLs — always use values
   returned by `dtctl`.
 - Do not create a second injector workflow when one exists.
+- Do not create a dashboard variable without `"defaultSelectAll": true` — dashboards must open showing all data, not a filtered subset.
 - Do not add a map when geographic data is not meaningful; when included,
   validate its coordinates and rendering.
 - Do not push commits or open PRs unless asked.

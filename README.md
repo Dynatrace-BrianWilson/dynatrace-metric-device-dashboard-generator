@@ -298,6 +298,7 @@ that one workflow — the agent never creates a second injector workflow.
 - **Header is two markdown tiles** — logo (`w:6, h:2`) + title (`w:18, h:2`).
 - **Charts ≥ `h:4`, KPIs `h:2`.**
 - **`makeTimeseries` for time charts**, `summarize` for KPIs — never feed `summarize` into a chart.
+- **Dashboard variables always default to `*` (all values)** — every `query` variable must set `"defaultSelectAll": true`. Without it, Dynatrace pre-selects the first result and the dashboard opens with filtered data.
 - **One injector workflow per tenant.** New technologies = new tasks.
 - **Entities via OpenPipeline `smartscapeNode` processors** — the classic entity API (`/api/v1/entity/infrastructure/custom`) is not available on Gen 3 tenants. `CUSTOM_DEVICE` type is blocked; use `CUSTOM_<TECHNOLOGY>_<ENTITY>` instead.
 - **Entities appear in Explorer Classic only** — Explorer New requires EF2; do not attempt to register `builtin:monitoredentities.generic.type` entries unless EF2 is in scope.
