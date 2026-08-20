@@ -7,7 +7,7 @@
   "plugins": [
     {
       "name": "dynatrace-metric-entity-dashboard-generator",
-      "description": "a Dynatrace Gen 3 metric dashboard, metric injector, and device/entity for a technology. Includes the /generate-metric-dashboard slash command.",
+      "description": "A Dynatrace Gen 3 metric dashboard generator with /generate-metric-dashboard and /cleanup-metric-dashboard commands.",
       "source": "./plugins/dynatrace-metric-entity-dashboard-generator"
     }
   ]

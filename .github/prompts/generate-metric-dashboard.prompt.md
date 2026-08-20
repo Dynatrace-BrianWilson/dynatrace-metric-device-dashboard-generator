@@ -12,6 +12,7 @@ Inputs you need from the user — **ask for these explicitly before starting** i
 - **Dynatrace Hub link** — e.g. `https://www.dynatrace.com/hub/detail/<technology>/`. If not provided, search the Hub yourself at https://www.dynatrace.com/hub/.
 - **Logo image or URL** — used for the dashboard header image tile. If not provided, search the web for an official brand logo. If nothing reliable is found, use a text-only markdown header — do not block.
 - **Industry / business domain** (optional research hint)
+- **Workflow duration in days** (optional; defaults to `7`, or use `0` for no automatic expiry)
 
 Then:
 

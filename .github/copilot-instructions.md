@@ -9,7 +9,8 @@ This repository is an **agent**: it generates a Dynatrace Gen 3 metric dashboard
 
 1. Confirm `dtctl auth whoami` works. If not, stop and ask the user to run `scripts/check-prereqs.sh`.
 2. **Show the active tenant context** (`dtctl ctx current` + `dtctl auth whoami`) and ask the user to confirm before any `apply`/`exec`. Never silently target whatever context is active.
-3. Create `dashboards/<Technology>/` with these files:
+3. Ask how many days the scheduled workflow should run. Default to 7 days for a demo; use 0 for no automatic expiry. Do not alter the duration of an existing shared workflow unless explicitly requested.
+4. Create `dashboards/<Technology>/` with these files:
    - `<technology>-dashboard-v1.json`
    - `<technology>-injector.js`
    - `<technology>-entity-creator.js`
@@ -37,6 +38,16 @@ This repository is an **agent**: it generates a Dynatrace Gen 3 metric dashboard
 - **Entities via OpenPipeline only on Gen 3 tenants** — classic entity APIs unavailable. `CUSTOM_DEVICE` nodeType is blocked; use `CUSTOM_<TECHNOLOGY>_<ENTITY>`.
 - **MINT line format** — commas as dimension separators, NOT semicolons: `metric.key,dim1=val1 value ts`.
 - **Entity visibility** — OpenPipeline entities appear in Explorer Classic only, not Explorer New.
+
+## Reference implementation and adaptation
+
+Use `skills/dynatrace-metric-entity-dashboard-generator/reference/zscaler-internet-access/` as the working example for the
+complete lifecycle: dashboard, BizEvents, optional logs, OpenPipeline entity
+extraction, shared workflow tasks, and live validation. Copy its structure,
+not its domain schema. Before generating, classify the technology as a
+device/network, runtime platform, database, application/service, business
+system, or security/control-plane use case and design the entity, KPIs, event
+types, logs, and map decision for that archetype.
 
 ## Workflow rule (do not violate)
 

@@ -13,6 +13,7 @@ runtime that respects `AGENTS.md`.
 
 ```
 dashboards/<Technology>/
+  asset-manifest.json                    # generator ownership and tenant resource IDs
   <technology>-dashboard-v1.json          # Gen 3 dashboard (logo, KPIs, charts, map)
   <technology>-injector.js               # 30-min BizEvents injector
   <technology>-entity-creator.js         # Workflow task: MINT ingest for metric-entity association
@@ -26,6 +27,48 @@ dashboards/<Technology>/
 A single shared workflow `1.BizEvents Dashboard Generator` runs every 30
 minutes in your tenant. Each new technology is added as **tasks** inside that
 one workflow — the agent never creates a second injector workflow.
+
+Generated workflows can use a finite schedule window. During generation,
+provide the number of days to run; the default is 7 days, and `0` means no
+automatic expiry. The workflow continues at its 30-minute interval until the
+configured end date. Because the workflow is shared, adding a task does not
+change an existing workflow's duration unless the user explicitly requests a
+schedule change.
+
+### Cleanup generated assets
+
+Each generated technology pack records its tenant resource IDs in
+`asset-manifest.json`. Use the cleanup tool to inventory packs and preview a
+technology-specific cleanup:
+
+```bash
+./scripts/cleanup-technology.sh --list
+./scripts/cleanup-technology.sh --technology zscaler-internet-access --dry-run
+./scripts/cleanup-technology.sh --technology zscaler-internet-access --confirm
+./scripts/validate-asset-manifest.sh dashboards/zscaler-internet-access/asset-manifest.json
+./scripts/test-asset-manifest.sh
+```
+
+Cleanup removes configuration assets such as dashboards, technology-specific
+OpenPipeline settings, logo documents, and the technology's tasks from the
+shared workflow. It never deletes the shared workflow. Historical BizEvents
+and logs are retained according to tenant retention, and Smartscape entity
+removal is reported separately unless the tenant exposes a supported delete
+lifecycle.
+
+Discovery is manifest-first by design. A technology folder without an
+`asset-manifest.json` is listed as legacy and is not eligible for automatic
+deletion until its ownership is reviewed and a manifest is added.
+
+### Reference example: Zscaler Internet Access
+
+The completed [Zscaler Internet Access reference pack](skills/dynatrace-metric-entity-dashboard-generator/reference/zscaler-internet-access/)
+is the repository's reference implementation. It shows the full lifecycle:
+BizEvents, optional synthetic logs, OpenPipeline Smartscape extraction, shared
+workflow tasks, dashboard thresholds, and live validation. Agents should reuse
+the implementation pattern while choosing technology-specific entities, event
+schemas, KPIs, log fields, and map usage. Zscaler's `site`, `zia_node`, and
+policy fields are not universal requirements.
 
 ---
 
@@ -73,6 +116,13 @@ skill is loaded globally.
 /generate-metric-dashboard NVIDIA GPU
 ```
 
+To discover or clean up generated assets:
+
+```text
+/cleanup-metric-dashboard
+/cleanup-metric-dashboard zscaler-internet-access
+```
+
 …or just ask in plain English: *"Generate a metric dashboard for NVIDAI GPU."*
 
 ### GitHub Copilot Chat (VS Code)
@@ -83,11 +133,16 @@ In agent mode:
 Generate a metric dashboard for NVIDIA
 ```
 
+For cleanup, use the reusable prompt `cleanup-metric-dashboard.prompt.md` or
+ask: `cleanup metric dashboard` followed by a technology name. Copilot runs a
+dry run first and requires explicit tenant and technology confirmation before
+deletion.
+
 If you want a slash command in Copilot too, link the prompt file:
 
 ```bash
 mkdir -p "$HOME/Library/Application Support/Code/User/prompts"   # macOS
-ln -sfn "$PWD/.github/prompts/generate-kpi-dashboard.prompt.md" \
+ln -sfn "$PWD/.github/prompts/generate-metric-dashboard.prompt.md" \
   "$HOME/Library/Application Support/Code/User/prompts/generate-metric-dashboard.prompt.md"
 ```
 
@@ -142,9 +197,8 @@ npx skills add Dynatrace-BrianWilson/dynatrace-metric-entity-dashboard-generator
 ```
 
 ```bash
-# Optional: also install the /generate-kpi-dashboard slash command in Claude Code
-# claude plugin marketplace add SudoSmitty/dynatrace-kpi-dashboard-generator
-# claude plugin install dynatrace-kpi-dashboard-generator@dynatrace-kpi-dashboard-generator
+# The generator plugin provides /generate-metric-dashboard and
+# /cleanup-metric-dashboard.
 ```
 
 Updates: `npx skills update` and `claude plugin update …`.
@@ -157,12 +211,14 @@ without re‑publishing, symlink the bundle into your global agent dirs:
 ```bash
 mkdir -p ~/.agents/skills ~/.claude/commands
 ln -sfn "$PWD/skills/dynatrace-metric-entity-dashboard-generator" \
-  ~/.agents/skills/dynatrace-kpi-dashboard-generator
-ln -sfn "$PWD/.claude/commands/dynatrace-metric-entity-dashboard-generator.md" \
-  ~/.claude/commands/generate-kpi-dashboard.md
+  ~/.agents/skills/dynatrace-metric-entity-dashboard-generator
+ln -sfn "$PWD/.claude/commands/generate-metric-dashboard.md" \
+  ~/.claude/commands/generate-metric-dashboard.md
+ln -sfn "$PWD/.claude/commands/cleanup-metric-dashboard.md" \
+  ~/.claude/commands/cleanup-metric-dashboard.md
 ```
 
-After editing `AGENTS.md` or `.example/`, regenerate the skill bundle:
+After editing `AGENTS.md` or the reference assets, regenerate the skill bundle:
 
 ```bash
 ./scripts/build-skill.sh
@@ -237,7 +293,7 @@ that one workflow — the agent never creates a second injector workflow.
 ## Hard rules the agent follows
 
 - **Gen 3 dashboard JSON only** (matches `.example/example_dashboard.json`).
-- **Map tile is required** — `bubbleMap` driven by geo coordinates from the injector. Always set `"regions": { "showRegions": false }`; specifying region codes causes "Failed to load map data".
+- **Map tile is optional** — include a `bubbleMap` or another map only when geographic, regional, site, or location data is meaningful for the technology. If included, drive it with real geo coordinates from the injector and always set `"regions": { "showRegions": false }`; specifying region codes causes "Failed to load map data".
 - **`singleValue` `≥` color rules** — lowest threshold first, highest last. Dynatrace applies the last matching rule; reversed order shows the wrong color for every value.
 - **Header is two markdown tiles** — logo (`w:6, h:2`) + title (`w:18, h:2`).
 - **Charts ≥ `h:4`, KPIs `h:2`.**
@@ -258,22 +314,22 @@ that one workflow — the agent never creates a second injector workflow.
 ├── .claude-plugin/
 │   └── marketplace.json                   # Claude Code plugin marketplace manifest
 ├── plugins/
-│   └── dynatrace-kpi-dashboard-generator/ # Claude Code plugin (skill + command via symlinks)
+│   └── dynatrace-metric-entity-dashboard-generator/ # Claude Code plugin commands
 ├── skills/
-│   └── dynatrace-kpi-dashboard-generator/ # redistributable skill bundle (generated)
+│   └── dynatrace-metric-entity-dashboard-generator/ # redistributable skill bundle
 │       ├── SKILL.md
-│       └── reference/                     # copy of .example/
+│       └── reference/                     # reusable reference assets
 ├── .github/
 │   ├── copilot-instructions.md            # Copilot system prompt
-│   └── prompts/generate-kpi-dashboard.prompt.md
+│   └── prompts/generate-metric-dashboard.prompt.md
 ├── .claude/
-│   └── commands/generate-kpi-dashboard.md # Claude Code slash command
+│   └── commands/generate-metric-dashboard.md # Claude Code slash command
 ├── scripts/
 │   ├── install.sh                         # macOS/Linux one-shot installer
 │   ├── build-skill.sh                     # regenerate skills/<name>/
-│   └── check-prereqs.sh
-├── .example/                              # template assets the agent mirrors
-└── dashboards/<Company>/                  # generated per company
+│   ├── check-prereqs.sh
+│   └── cleanup-technology.sh               # discover, preview, and clean assets
+└── dashboards/<Company>/                  # generated per company, including asset-manifest.json
 ```
 
 Where each piece is used:
@@ -284,9 +340,9 @@ Where each piece is used:
 | [skills/dynatrace-metric-entity-dashboard-generator/SKILL.md](skills/dynatrace-metric-entity-dashboard-generator/SKILL.md) | `npx skills add` redistributable bundle |
 | [AGENTS.md](AGENTS.md) | **Canonical spec** — source for the skill bundle |
 | [.github/copilot-instructions.md](.github/copilot-instructions.md) | GitHub Copilot (auto‑loaded in this repo) |
-| [.github/prompts/generate-metic-dashboard.prompt.md](.github/prompts/generate-metric-dashboard.prompt.md) | Copilot Chat reusable prompt |
+| [.github/prompts/generate-metric-dashboard.prompt.md](.github/prompts/generate-metric-dashboard.prompt.md) | Copilot Chat reusable prompt |
 | [.claude/commands/generate-metric-dashboard.md](.claude/commands/generate-metric-dashboard.md) | Claude Code slash command source |
-| [scripts/build-skill.sh](scripts/build-skill.sh) | Regenerates the skill bundle from `AGENTS.md` + `.example/` |
+| [scripts/build-skill.sh](scripts/build-skill.sh) | Regenerates the skill bundle from `AGENTS.md` + reference assets |
 
 ---
 

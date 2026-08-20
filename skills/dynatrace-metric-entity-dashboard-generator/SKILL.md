@@ -1,5 +1,5 @@
 ---
-name: dynatrace-metrics-metric-dashboard-generator
+name: dynatrace-metric-entity-dashboard-generator
 description: Generate a Dynatrace Gen 3 **KPI dashboard** (15–20 KPIs, optional map tile, branded section dividers), a relevant dynatrace entity to map metrics and logs to and a matching 30‑minute data injector for a named technology, then deploy both via `dtctl`. Do not use this skill if a user is triggering the generate-kpi-dashboard generator. Triggers include phrases like "generate a metric dashboard", "build a metrics demo for <technology>", "spin up a metrics dashboard + injector", "/generate-technology-dashboard". Requires `dtctl` authenticated to a Dynatrace Gen 3 tenant.
 ---
 
@@ -16,14 +16,104 @@ metric and log (if logs are applicable) injector**, and create a dynatrace entit
 
 You are a Dynatrace Solutions Engineer. For a given technology:
 
+0. **Gather inputs before starting.** If the user has not provided the following,
+   ask explicitly — but make clear each item is optional:
+   - **Dynatrace Hub link** — e.g. `https://www.dynatrace.com/hub/detail/<technology>/`.
+     Used to research pre-built extensions and official metric names.
+     If the user doesn't have one, search https://www.dynatrace.com/hub/ yourself.
+   - **Logo image or URL** — used for the dashboard header image tile.
+     If the user doesn't have one, search the web for an official brand logo URL
+     and verify it (see Logo section below). If nothing reliable is found, use
+     a text-only markdown header — never block on a missing logo.
+    - **Workflow duration in days** — ask how many days the scheduled injector
+      should run. Default to `7` for a generated demo; use `0` for no automatic
+      expiry.
 1. Research technology KPIs relevant to the technology provided (15–20).
 2. Include a search of the dynatrace hub - https://www.dynatrace.com/hub/ - for any pre-configured extensions, technology, or application information.
 3. Build a **Gen 3 dashboard** with real‑time KPI tiles, charts, and if applicable, a map tile. The metrics used should be the most relevant for the technology, based on research.
-4. Create a JavaScript injector that streams 3,000–5,000 metric events per
+4. Create a Dynatrace entity to map metrics and logs to.
+5. Create a JavaScript injector that streams 3,000–5,000 metric events per
    30‑minute run, and if applicable, 2000 log entries per run.
-5. Deploy both to Dynatrace via `dtctl`, **adding a task to the existing
+6. Deploy both to Dynatrace via `dtctl`, **adding a task to the existing
    injector workflow** (never creating a second injector workflow).
-6. Document patterns in the company folder for reuse.
+7. Document patterns in the technology folder for reuse.
+
+### Asset ownership and cleanup
+
+Every generated technology folder must include an `asset-manifest.json` with
+`managedBy: dynatrace-metric-entity-dashboard-generator`, the event provider,
+log source, dashboard IDs, OpenPipeline setting IDs, shared workflow ID and
+task names, logo document IDs, and entity type/prefix. Use this manifest as
+the primary cleanup record; do not infer ownership from a dashboard title
+alone.
+
+Validate it with `scripts/validate-asset-manifest.sh` before deployment. A
+generated pack is not cleanup-ready until the manifest passes validation.
+Run `scripts/test-asset-manifest.sh` when changing the manifest schema or
+cleanup behavior.
+
+The cleanup operation must default to discovery or dry-run. It must display
+the active tenant, require typed technology confirmation before deletion, edit
+only that technology's tasks out of the shared workflow, and never delete the
+shared workflow. Historical BizEvents and logs are retained; Smartscape
+entities may require tenant-supported lifecycle handling and must not be
+reported as deleted without verification.
+
+### Workflow duration
+
+Every generated workflow runs on a 30-minute interval. Unless the user asks
+for a different value, set the schedule to expire after 7 days. Calculate the
+expiration from the workflow start date in the requested tenant timezone and
+write the resulting end date/time into the schedule filter parameters:
+
+```yaml
+trigger:
+  schedule:
+    filterParameters:
+      earliestStart: "2026-08-20"
+      earliestStartTime: "00:00"
+      latestStart: "2026-08-27"
+      latestStartTime: "00:00"
+```
+
+The interval remains `30` minutes. `0` means omit the end parameters and leave
+the workflow running indefinitely. Do not change the duration of an existing
+shared workflow when adding a technology task unless the user explicitly asks;
+the schedule belongs to the whole shared workflow, not to one task.
+
+After applying a finite-duration workflow, read it back with `dtctl get
+workflow` and verify that the persisted schedule contains the intended end
+date. If the tenant rejects the end parameters, stop and report that native
+schedule expiry is unavailable in that tenant rather than silently deploying
+an unlimited workflow.
+
+## Reference implementation: Zscaler Internet Access
+
+Use `skills/dynatrace-metric-entity-dashboard-generator/reference/zscaler-internet-access/` as the primary working example for
+the complete asset lifecycle. It demonstrates a Gen 3 dashboard, BizEvents
+injector, optional synthetic logs, OpenPipeline Smartscape extraction, shared
+workflow tasks, threshold persistence validation, and live ingestion checks.
+
+Treat Zscaler's fields and event names as technology-specific. Reuse its
+structure and validation approach, but redesign the event schema, entity type,
+KPIs, logs, and layout for the requested technology.
+
+### Technology archetypes
+
+Classify the requested technology before choosing the asset model:
+
+| Archetype | Typical entity | Useful signals | Map guidance |
+|---|---|---|---|
+| Network/device | device, interface, site | availability, errors, throughput, capacity, state | Use for sites or geographic device fleets |
+| Runtime platform | cluster, node, process group | CPU, memory, latency, restarts, queue depth, saturation | Use only when nodes or regions matter |
+| Database/data platform | database, shard, replica | query latency, connections, locks, replication lag, storage | Usually omit unless instances are geographically distributed |
+| Application/service | service, endpoint, workload | rate, errors, duration, dependencies, user impact | Use for service locations or deployment regions |
+| Business system | store, venue, account, transaction stream | volume, conversion, revenue, fulfillment, customer impact | Use when location is part of the business model |
+| Security/control plane | policy engine, gateway, tenant, site | detections, blocks, risk, policy outcomes, audit activity | Use for sites, regions, or trust boundaries |
+
+The archetype is a design aid, not a restriction. If the technology spans
+multiple archetypes, state which entity is primary and which signals are
+supporting evidence.
 
 ---
 
@@ -80,24 +170,16 @@ When invoked, the agent asks for (or infers from the user's request):
 - **Logo URL** (optional) — if missing, search the web for a public logo URL
   and confirm with the user before using it. 
 
-### Gathering inputs — ask before starting
+### Logo URL — VERIFY BEFORE EMBEDDING
 
-Before generating any files, confirm the user has these (all optional — never block):
+### Logo embedding
 
-- **Dynatrace Hub link** — `https://www.dynatrace.com/hub/detail/<technology>/`.
-  Used to find official metric names and pre-built extensions. If not provided,
-  search https://www.dynatrace.com/hub/ yourself.
-- **Logo image or URL** — used for the dashboard image tile. If not provided,
-  search the web for an official brand logo and verify it (see below). If nothing
-  reliable is found, use a text-only markdown header.
-
-### Logo — `image` tile type (confirmed schema)
-
+**Use the `image` tile type — confirmed schema:**
 ```json
 {
   "type": "image",
   "imageSettings": {
-    "defaultSource": "/platform/document/v1/documents/<technology>-logo/content",
+    "defaultSource": "/platform/document/v1/documents/<document-id>/content",
     "sizing": "fit",
     "horizontalAlignment": "center",
     "verticalAlignment": "center"
@@ -105,22 +187,41 @@ Before generating any files, confirm the user has these (all optional — never 
 }
 ```
 
-Upload the logo using **`upload-logo.sh`** (no Python required — uses only `base64`, `fold`, `sed`, `dtctl`):
+Images are stored as Dynatrace Documents (`type: image`). They **must** be uploaded
+via `dtctl exec function` using a JavaScript `FormData` + `Blob` multipart request.
+
+**DO NOT use `dtctl apply` with `!!binary` YAML** — this does not correctly transmit
+binary content to the Document API. It creates the document record but the image
+payload is lost, resulting in a broken/unrenderable image tile.
+
+**To upload a logo — use `upload-logo.sh`:**
 
 ```bash
+# Download the logo first
 curl -sL "<logo-url>" -o <technology>-logo.png
+
+# Upload to Dynatrace Document Store via dtctl exec function
 bash upload-logo.sh <technology>-logo.png <technology>-logo "Technology Dashboard Logo"
+# e.g.
+bash upload-logo.sh nvidia-logo.png nvidia-dcgm-logo "NVIDIA DCGM Dashboard Logo"
 ```
 
-Copy `upload-logo.sh` from `dashboards/nvidia-dcgm/` into each new `dashboards/<Technology>/` folder.
+`upload-logo.sh` uses `dtctl exec function` with an inline JS script that:
+1. Checks whether the document already exists (`GET /metadata`).
+2. If it exists: updates content via `PUT /documents/{id}/content?optimistic-locking-version=<n>`.
+3. If it doesn't exist: creates the document via `POST /documents` (JSON metadata), then uploads content via `PUT`.
 
-`sizing`: `"fit"` (letterbox) or `"fill"` (crop to fill). Document ID: `<technology>-logo`.
+The script handles both create and update, and is idempotent — safe to re-run.
+
+Copy `upload-logo.sh` from `scripts/` into each `dashboards/<Technology>/` folder.
+
+`sizing`: `"fit"` (letterbox, preserves aspect ratio) or `"fill"` (crops to fill tile).
+Document ID convention: `<technology>-logo` (e.g. `nvidia-dcgm-logo`).
 
 ---
 
-### Logo URL — verify before downloading
-
-Never use a logo URL without first confirming the URL serves an image. Run:
+Never embed a logo via URL without first confirming the URL serves an image to a
+cross-origin browser. Run:
 
 ```bash
 curl -sIL -A 'Mozilla/5.0' -H 'Referer: https://apps.dynatrace.com' '<URL>' \
@@ -154,6 +255,7 @@ For every new technology create a folder under `dashboards/`:
 
 ```
 dashboards/<Technology>/
+  asset-manifest.json                    # generator ownership and tenant resource IDs
   <Technology>-dashboard-v1.json          # Gen 3 dashboard JSON
   <Technology>-injector.js               # 30-min BizEvents metrics/logs injector
   <Technology>-entity-creator.js         # Workflow task: MINT ingest to associate metrics with entities
@@ -172,10 +274,10 @@ mirror the version (e.g. `acme_v1`, `acme_v2`).
 
 ## Reference assets (read these before generating)
 
-## - `.example/example_dashboard.json` — Gen 3 dashboard
+## - `reference/example_dashboard.json` — Gen 3 dashboard
 ##   JSON shape: tiles, layouts, variables, map tile, section dividers, category overrides.
-## - `.example/example_data_injector.workflow.json` — Workflow + JS task shape (schedule, ownerType, action type, position).
-## - `.example/example-injector.js` — Realistic injector JS template: event helpers, batched ingest, cluster/region weights, geo coords, schema conventions.
+## - `reference/example_data_injector.workflow.json` — Workflow + JS task shape (schedule, ownerType, action type, position).
+## - `reference/example-injector.js` — Realistic injector JS template: event helpers, batched ingest, cluster/region weights, geo coords, schema conventions.
 ## The agent must **mirror the structure** of these examples.
 
 ---
@@ -281,18 +383,21 @@ Minimize vertical gaps for a professional appearance:
   y:9   next divider (h:1)
   ```
 
-### Map tile — REQUIRED, ABOVE THE FOLD
+### Map tile — OPTIONAL, WHEN GEOGRAPHICALLY MEANINGFUL
 
-Every dashboard can include the most relevant map tile, a `bubbleMap`,
+Include a map tile only when the technology has meaningful geographic,
+regional, site, store, cluster, or location data that helps the operator make
+a decision. Do not add a decorative map or invent coordinates just to satisfy
+the template. When appropriate, use a `bubbleMap`,
 `dotMap`, `connectionMap`, or `chloropleth` tile, fed by an event type
 that emits `geo.location.latitude` and `geo.location.longitude` (cluster,
 region, site, or store). The injector must populate these fields for at
-least one event type. 
-# See tile `30` in `example_dashboard.json` for shape.
+least one event type. See the reference dashboard for the tile shape.
 
-**Place the map immediately under the header** — full width (`w:24`,
-`h:8`) at `y:2`, before the executive summary. Geographic context belongs
-above the fold. When inserting, bump every following tile's `y` by
+When included, place the map immediately under the header when geographic
+context is central to the dashboard — full width (`w:24`, `h:8`) at `y:2`,
+before the executive summary. Otherwise place it in the most useful section
+for the technology. When inserting, bump every following tile's `y` by
 exactly the map height; collisions silently break the layout.
 
 **`regions` config — always set `showRegions: false`:**
@@ -310,11 +415,11 @@ There are three **tile types** (`"type"` field in the tile object):
 | Tile type | Purpose | Key fields |
 |-----------|---------|-----------|
 | `data` | DQL-powered visualization | `query`, `visualization`, `visualizationSettings`, `davis` |
-| `markdown` | Text, headers, embedded images | `content` (CommonMark; `![alt](data:image/...;base64,...)` for logos) |
+| `markdown` | Text, headers, embedded images | `content` (CommonMark string; `![alt](data:image/...;base64,...)` for logos) |
 | `code` | JS function via Dynatrace Functions runtime | `input` (JS string importing `@dynatrace-sdk/*`), `visualization`, `visualizationSettings` |
 | `image` | Native image tile with fill/fit/align sizing | `imageSettings.defaultSource` = `/platform/document/v1/documents/<id>/content`; image stored in Documents API |
 
-The `code` tile is useful for data not reachable by DQL: USQL, metric selectors, Classic API, external REST APIs.
+The `code` tile is especially useful for data sources not reachable by DQL: USQL, metric selectors, Classic API endpoints, external REST APIs. It runs in the Dynatrace Functions sandbox.
 
 ### Visualization variety — required mix
 
@@ -421,16 +526,19 @@ with plain `| filter in(<field>, $<Var>)` — **no** `array_size($Var)
 all rows when `defaultSelectAll: true` is set).
 
 Rules:
-1. **Insert filters BEFORE aggregation pipes** (`makeTimeseries`,
+1. **Always include `"defaultSelectAll": true`** on every query variable. Without it, Dynatrace
+   may pre-select the first query result rather than all values, and the dashboard opens with
+   filtered data.
+2. **Insert filters BEFORE aggregation pipes** (`makeTimeseries`,
    `summarize`, `fields*`, `sort`, `limit`). After `makeTimeseries` the
    source field no longer exists, so a trailing
    `| filter in(region, $Region)` silently drops every row.
-2. **Per-tile field availability matters.** Compute the **intersection**
+3. **Per-tile field availability matters.** Compute the **intersection**
    of filterable fields across every `event.type` referenced by the
    tile. Only inject filters for fields shared by ALL referenced types.
    Tiles whose events share no filterable dimensions (section dividers,
    funnel-only events, the global map) correctly get no variable filter.
-3. Variables are **company-specific**. Pick 3–5 dimensions that map to
+4. Variables are **company-specific**. Pick 3–5 dimensions that map to
    the operating model (e.g. `$Banner`, `$Region`, `$Department`,
    `$Channel`, `$Store`). Avoid more than ~5 — the bar gets crowded.
 
@@ -512,7 +620,10 @@ only reliable path to create topology entities from BizEvents is
 
 Also create `<technology>-entity-creator.js` as a second workflow task that
 pushes MINT metric lines with `dt.entity.custom_<type>=<id>` dimensions. This
-pre-associates MINT metrics with the entity ID space.
+pre-associates MINT metrics with the entity ID space. Note: the entity IDs
+generated by the script's hash function will differ from the IDs generated
+internally by OpenPipeline; the MINT metrics are still useful for querying
+by entity dimension even if the topology link is imprecise.
 
 MINT line format (commas as separators — NOT semicolons):
 ```
@@ -526,20 +637,23 @@ dtctl query "smartscapeNodes \"CUSTOM_<TYPE>\", from:now()-1h | limit 20" --plai
 
 ## Phase 4 — Event injector JavaScript
 
-Use `.example/example-injector.js` and the `script`
+Use `reference/example-injector.js` and the `script`
 field in `example_data_injector.workflow.json` as the structural template.
 
 ### Requirements
-- **Data mapping** data - metrics and logs - should be attached to the entity or entities created.
-- **Event types:** 15–20 different types
+- **Data mapping** data - metrics and logs - should be attached to the entity or entities created when the technology's schema supports that relationship.
+- **Event types:** choose the smallest realistic set that covers the technology's use cases; typically 8–20 different types
   (`gaming.transaction`, `guest.checkin`, `equipment.telemetry`, ...).
 - **Field schema:** snake_case for all fields
   (`gaming_venue`, `occupancy_percent`, ...).
 - **Realistic values:** match the technology domain (CPU level, latency in ms or low seconds, temperature, 
   0–100 for percentages, plausible ranges).
-- **Volume:** 3,000–5,000 events per execution (~100+ per event type).
-- **Geo fields:** at least one event type emits
-  `geo.location.latitude` / `geo.location.longitude` for the map tile.
+- **Volume:** default to 3,000–5,000 events per execution for a demo, adjusting
+  the target when the technology's natural cardinality or cost makes another
+  volume more realistic.
+- **Geo fields:** emit
+  `geo.location.latitude` / `geo.location.longitude` only when a map is part of
+  the dashboard design.
 - **Ingest endpoint:** `/platform/classic/environment-api/v2/bizevents/ingest`.
 - **Batching:** 500 events per POST to stay under ~5MB; throw on non‑2xx.
 - **Auth:** integrated platform auth — no token; the workflow runs in the
@@ -557,7 +671,7 @@ Pre‑implementation:
 - [ ] Logo URL gathered **AND verified** via `curl -sIL` (must return
       `HTTP 200` + `content-type: image/*`).
 - [ ] 5–6 section colors chosen from brand/theme.
-- [ ] 3–5 dashboard variables chosen (multi-select, query-driven).
+- [ ] 3–5 dashboard variables chosen (multi-select, query-driven, **`"defaultSelectAll": true`** on each).
 
 Query validation:
 - [ ] Each DQL query tested in the DQL editor with `| limit 10`.
@@ -568,11 +682,12 @@ Query validation:
 Tile creation:
 - [ ] Logo tile (markdown, `h:2`, `w:6`).
 - [ ] Title tile (markdown, `h:2`, `w:18`).
-- [ ] **Map tile placed at `y:2` (above executive summary), `w:24`,
-      `h:8`**.
+- [ ] Map included only when geographic data is meaningful; if included,
+      verify it uses usable coordinates and an intentional layout position.
 - [ ] Section dividers (`h:1`, colored).
 - [ ] KPI tiles (`h:2`, under each section); 3–4 use `singleValue` +
       threshold `colorRules` for gauge feel. `≥` rules ordered **lowest value first, highest last**.
+- [ ] All `singleValue` `unitsOverrides` use `unitCategory: "unspecified"` + `baseUnit: "count"` — never `unitCategory: "time"` on latency/duration tiles (breaks colorRule threshold comparison).
 - [ ] `bubbleMap` uses `"regions": { "showRegions": false }` — no region codes.
 - [ ] Chart tiles (`h:4+`, under KPIs).
 - [ ] **Visualization mix:** at least 4 distinct chart types across the
@@ -593,7 +708,7 @@ Styling & validation:
 - [ ] Chart `legend.ratio` 20–30.
 - [ ] `categoryOverrides` for semantic colors.
 - [ ] No red‑X tiles in preview.
-- [ ] Logo and map tile render correctly.
+- [ ] Logo renders correctly; if a map is included, it renders correctly.
 
 ---
 
@@ -627,6 +742,7 @@ is exactly one injector workflow per tenant; new companies are added as
    dtctl apply -f "dashboards/<technology>/<technology>-openpipeline.json" --plain
    dtctl apply -f "dashboards/<technology>/<technology>-openpipeline-routing.json" --plain
    ```
+   These create the `smartscapeNode` pipeline that extracts Smartscape entities from BizEvents.
 
 3. **Search for the existing injector workflow first:**
    ```bash
@@ -644,7 +760,7 @@ is exactly one injector workflow per tenant; new companies are added as
    - `dtctl apply -f .tmp/workflow.json`
 
 5. **If no workflow exists (first run on a brand‑new tenant only):**
-   - Use `.example/example_data_injector.workflow.json`
+   - Use `reference/example_data_injector.workflow.json`
      as the template.
    - Replace its single task with the new company's task; rename the
      workflow `1.BizEvents Dashboard Generator`.
@@ -721,7 +837,8 @@ For every project, write into the company folder:
 - [ ] No red‑X tiles.
 - [ ] Every KPI tile has data.
 - [ ] Every chart shows legends/labels.
-- [ ] Map tile is populated with cluster/region/site coordinates.
+- [ ] If a map is included, it is populated with cluster/region/site
+  coordinates.
 - [ ] Layout is compact (no excessive whitespace).
 - [ ] Workflow execution finished SUCCESS.
 - [ ] 3,000+ events ingested per run.
@@ -748,7 +865,8 @@ For every project, write into the company folder:
 - Do not invent dashboard IDs, workflow IDs, or URLs — always use values
   returned by `dtctl`.
 - Do not create a second injector workflow when one exists.
-- Do not skip the map tile.
+- Do not add a map when geographic data is not meaningful; when included,
+  validate its coordinates and rendering.
 - Do not push commits or open PRs unless asked.
 - Do not run destructive `dtctl delete` commands without explicit user
   confirmation.

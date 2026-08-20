@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Validate that required single-value tiles in a live Dynatrace dashboard have threshold rules.
+#
+# Usage:
+#   ./scripts/validate-dashboard-thresholds.sh <dashboard-id> [exclude-title-regex]
+#
+# Example:
+#   ./scripts/validate-dashboard-thresholds.sh 6484dc84-ee19-4a7d-8787-dc66337b1463
+#   ./scripts/validate-dashboard-thresholds.sh 6484dc84-ee19-4a7d-8787-dc66337b1463 "Blocked Policy Decisions|EXECUTIVE SUMMARY|SERVICE HEALTH TRENDS"
+
+set -euo pipefail
+
+red()   { printf '\033[31m%s\033[0m\n' "$*"; }
+green() { printf '\033[32m%s\033[0m\n' "$*"; }
+yellow(){ printf '\033[33m%s\033[0m\n' "$*"; }
+
+if ! command -v dtctl >/dev/null 2>&1; then
+  red "dtctl not found in PATH"
+  exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  red "jq not found in PATH"
+  exit 1
+fi
+
+if [ $# -lt 1 ]; then
+  red "Usage: $0 <dashboard-id> [exclude-title-regex]"
+  exit 2
+fi
+
+DASHBOARD_ID="$1"
+EXCLUDE_REGEX="${2:-Blocked Policy Decisions|EXECUTIVE SUMMARY|SERVICE HEALTH TRENDS}"
+
+TMP_JSON="$(mktemp)"
+trap 'rm -f "$TMP_JSON"' EXIT
+
+echo "==> Fetching dashboard ${DASHBOARD_ID} from Dynatrace..."
+dtctl get dashboard "$DASHBOARD_ID" -o json --plain > "$TMP_JSON"
+
+DASHBOARD_NAME="$(jq -r '.result.name // "<unknown>"' "$TMP_JSON")"
+echo "Dashboard: ${DASHBOARD_NAME}"
+echo "Exclude title regex: ${EXCLUDE_REGEX}"
+echo
+
+# Build rows: tileId, title, thresholdCount, requiredFlag
+REPORT="$(jq -r --arg ex "$EXCLUDE_REGEX" '
+  .result.content.tiles
+  | to_entries[]
+  | select(.value.visualization == "singleValue")
+  | {
+      tile: .key,
+      title: (.value.title // ""),
+      thresholdCount: ((.value.visualizationSettings.thresholds // []) | length),
+      required: ((.value.title // "") | test($ex) | not)
+    }
+  | [.tile, .title, (.thresholdCount|tostring), (if .required then "required" else "excluded" end)]
+  | @tsv
+' "$TMP_JSON")"
+
+if [ -z "$REPORT" ]; then
+  yellow "No singleValue tiles found in this dashboard."
+  exit 0
+fi
+
+printf "%s\n" "tile\ttitle\tthreshold_count\tstatus"
+printf "%s\n" "$REPORT"
+
+MISSING_COUNT="$(printf "%s\n" "$REPORT" | awk -F'\t' '$4=="required" && $3=="0" {c++} END {print c+0}')"
+REQUIRED_COUNT="$(printf "%s\n" "$REPORT" | awk -F'\t' '$4=="required" {c++} END {print c+0}')"
+
+if [ "$MISSING_COUNT" -gt 0 ]; then
+  echo
+  red "Validation failed: ${MISSING_COUNT} of ${REQUIRED_COUNT} required singleValue tiles have no thresholds."
+  red "Missing tiles:"
+  printf "%s\n" "$REPORT" | awk -F'\t' '$4=="required" && $3=="0" {printf "- tile %s: %s\n", $1, $2}'
+  exit 1
+fi
+
+echo
+green "Validation passed: all ${REQUIRED_COUNT} required singleValue tiles have thresholds."
