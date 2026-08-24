@@ -316,13 +316,26 @@ Use a `singleValue` data tile with `data record(section="...")`, height
 `h:1`, full width `w:24`, distinct brand‑appropriate background color per
 section.
 
-Suggested palette (override per technology/company brand):
-- network: `#D4AF37` (Gold)
-- service technology: `#1E90FF` (Blue)
-- database: `#FF6347` (Tomato Red)
-- AI: `#9B59B6` (Purple)
-- Operations/Facilities: `#34495E` (Slate)
-- virtualization: `#DAA520` (Dark Gold)
+**Color rule for section dividers — NEVER use red, green, or yellow (any shade).**
+Those colors are reserved exclusively for KPI health indicators on `singleValue`
+tiles that display real metric values. Using them on structural chrome trains
+users to look for health meaning where there is none.
+
+Forbidden families for dividers:
+- Red: `#c62239`, `#FF6347`, `#e53935`, `#d32f2f`, or any red/crimson/tomato
+- Green: `#2a7452`, `#4caf50`, `#43a047`, or any green/emerald/teal-green
+- Yellow/Gold: `#DAA520`, `#D4AF37`, `#eea53c`, `#FFD700`, `#f9a825`, or any gold/amber/yellow
+
+Safe palette for section dividers:
+- `#1E90FF` — Dodger Blue (service, cloud)
+- `#2980B9` — Steel Blue (infrastructure, network)
+- `#9B59B6` — Amethyst Purple (AI, security)
+- `#34495E` — Wet Asphalt / Slate (operations, general)
+- `#2C3E50` — Dark Slate (heavy infrastructure)
+- `#1ABC9C` — Turquoise Teal (data, storage)
+- `#E67E22` — Carrot Orange (backup, tasks — clearly orange, not yellow)
+- `#3F51B5` — Indigo (virtualization, platform)
+- `#546E7A` — Blue Grey (neutral, system)
 
 Example divider:
 
@@ -341,7 +354,7 @@ Example divider:
     },
     "thresholds": [
       { "id": 1, "field": "section", "rules": [
-        { "id": 1, "color": "#D4AF37", "comparator": "!=", "value": "1" }
+        { "id": 1, "color": "#2980B9", "comparator": "!=", "value": "1" }
       ]}
     ]
   }

@@ -396,7 +396,7 @@ content:
             isEnabled: true
             rules:
               - id: 1
-                color: "#DAA520"
+                color: "#2980B9"
                 comparator: "!="
                 label: ""
                 value: "1"
@@ -455,7 +455,7 @@ content:
             isEnabled: true
             rules:
               - id: 1
-                color: "#DAA520"
+                color: "#2980B9"
                 comparator: "!="
                 label: ""
                 value: "1"
