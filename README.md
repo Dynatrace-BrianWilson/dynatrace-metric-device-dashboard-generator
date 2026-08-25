@@ -1,7 +1,7 @@
 # Business Event Generator
 
-An installable **AI agent** that, for any company you name, generates a
-Dynatrace **Gen 3 KPI dashboard** plus a **30‑minute BizEvents injector**,
+An installable **AI agent** that, for any technology you name, generates a
+Dynatrace **Gen 3 KPI dashboard**, **Smartscape Entity**, plus a **30‑minute metrics/log injector**,
 deploys both with `dtctl`, and verifies events are flowing.
 
 Works with **Claude Code**, **GitHub Copilot**, **Cursor**, or any agent
@@ -15,7 +15,7 @@ runtime that respects `AGENTS.md`.
 dashboards/<Technology>/
   asset-manifest.json                    # generator ownership and tenant resource IDs
   <technology>-dashboard-v1.json          # Gen 3 dashboard (logo, KPIs, charts, map)
-  <technology>-injector.js               # 30-min BizEvents injector
+  <technology>-injector.js               # 30-min metrics & logs injector
   <technology>-entity-creator.js         # Workflow task: MINT ingest for metric-entity association
   <technology>-openpipeline.json         # OpenPipeline pipeline (smartscapeNode extraction)
   <technology>-openpipeline-routing.json # OpenPipeline routing rule
