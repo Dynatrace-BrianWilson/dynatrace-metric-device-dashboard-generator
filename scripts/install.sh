@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot installer for Business Event Generator agent prerequisites.
+# One-shot installer for Metric-Entity Dashboard Generator agent prerequisites.
 # macOS / Linux only. Windows users: see README.md.
 set -eu
 

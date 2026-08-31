@@ -23,7 +23,7 @@ Create the technology pack under `dashboards/<technology>/`, including:
 
 - `asset-manifest.json`
 - Versioned Gen 3 dashboard
-- BizEvents injector and optional log injector
+- MINT metrics injector and optional log injector
 - OpenPipeline pipeline and routing settings
 - Workflow task definition
 - `README.md`, `LEARNINGS.md`, and `SALES-PITCH.md`

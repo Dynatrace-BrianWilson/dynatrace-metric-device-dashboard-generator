@@ -47,6 +47,6 @@ Follow `AGENTS.md` in this repository exactly. In particular:
    - If found: append new tasks `<technology>_v1` and `<technology>_entities_v1` and `dtctl apply` the workflow.
    - If not found: create from `.example/example_data_injector.workflow.json`. Never create a second injector workflow.
 11. `dtctl exec workflow <id>` and confirm SUCCESS.
-12. Verify events landed: `fetch bizevents | filter event.provider == "<technology>.event.provider" | summarize count()`.
+12. Verify MINT metric ingest: `timeseries avg(<technology>.<primary_metric>), from: now()-5m`.
 13. Verify entities: `dtctl query "smartscapeNodes \"CUSTOM_<TYPE>\", from:now()-1h | limit 20" --plain`.
 14. Report dashboard URL, workflow ID, and task names back to the user.

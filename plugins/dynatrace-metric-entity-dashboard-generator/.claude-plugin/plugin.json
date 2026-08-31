@@ -1,7 +1,7 @@
 {
   "name": "dynatrace-metric-entity-dashboard-generator",
   "version": "0.1.0",
-  "description": "Generate a Dynatrace Gen 3 metric dashboard, BizEvents injector, OpenPipeline entity pipeline, and Smartscape topology for any technology. Bundles the skill and the /generate-metric-dashboard slash command.",
+  "description": "Generate a Dynatrace Gen 3 metric dashboard, MINT metrics injector, OpenPipeline entity pipeline, and Smartscape topology for any technology. Bundles the skill and the /generate-metric-dashboard slash command.",
   "author": {
     "name": "Dynatrace-BrianWilson",
     "url": "https://github.com/Dynatrace-BrianWilson"

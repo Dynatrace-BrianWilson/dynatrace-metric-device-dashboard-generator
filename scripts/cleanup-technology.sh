@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Discover and safely clean up assets generated for one technology.
-# Configuration is removed; historical logs and BizEvents are retained.
+# Configuration is removed; historical logs and metrics are retained.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -16,7 +16,7 @@ Usage:
   scripts/cleanup-technology.sh --technology <slug> --confirm
 
 The command is dry-run unless --confirm is supplied. It never deletes the
-shared workflow, historical BizEvents, or historical logs.
+shared workflow, historical metrics, or historical logs.
 USAGE
 }
 
@@ -105,7 +105,7 @@ jq -r '
 ' "$MANIFEST"
 echo
 echo "Shared workflow: ${WORKFLOW_ID:-none} (will be edited, never deleted)"
-echo "Retained telemetry: BizEvents and logs for this technology"
+echo "Retained telemetry: metrics and logs for this technology"
 echo "Smartscape entities: reported for follow-up; not assumed deletable"
 
 [ "$MODE" = "plan" ] && exit 0
@@ -170,4 +170,4 @@ done < <(jq -r '(.resources.dashboard[]?, .resources.settings[]?) | [.type, .id]
 
 echo
 echo "Cleanup complete for configuration assets belonging to $TECHNOLOGY."
-echo "Historical BizEvents and logs were retained. Smartscape entities require separate tenant-supported lifecycle handling."
+echo "Historical metrics and logs were retained. Smartscape entities require separate tenant-supported lifecycle handling."

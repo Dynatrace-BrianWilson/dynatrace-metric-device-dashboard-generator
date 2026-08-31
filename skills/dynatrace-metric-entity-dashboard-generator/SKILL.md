@@ -759,9 +759,9 @@ is exactly one injector workflow per tenant; new companies are added as
 3. **Search for the existing injector workflow first:**
    ```bash
    dtctl get workflows -o json --plain | \
-     jq '.[] | select(.title | test("BizEvents Dashboard Generator|KPI Data Injector|injector"; "i"))'
+     jq '.[] | select(.title | test("Metric Entity Dashboard Generator|injector"; "i"))'
    ```
-   Prefer the workflow titled `1.BizEvents Dashboard Generator`. If multiple
+   Prefer the workflow titled `1.Metric Entity Dashboard Generator`. If multiple
    match, confirm with the user.
 
 4. **If a workflow exists (the normal case):**
@@ -775,7 +775,7 @@ is exactly one injector workflow per tenant; new companies are added as
    - Use `reference/example_data_injector.workflow.json`
      as the template.
    - Replace its single task with the new company's task; rename the
-     workflow `1.BizEvents Dashboard Generator`.
+     workflow `1.Metric Entity Dashboard Generator`.
    - `dtctl apply -f` it; capture the workflow ID.
 
 6. **Execute and verify:**

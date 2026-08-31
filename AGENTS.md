@@ -165,8 +165,6 @@ When invoked, the agent asks for (or infers from the user's request):
 - **Logo URL** (optional) — if missing, search the web for a public logo URL
   and confirm with the user before using it. 
 
-### Logo URL — VERIFY BEFORE EMBEDDING
-
 ### Logo embedding
 
 **Use the `image` tile type — confirmed schema:**
@@ -269,11 +267,11 @@ mirror the version (e.g. `acme_v1`, `acme_v2`).
 
 ## Reference assets (read these before generating)
 
-## - `.example/example_dashboard.json` — Gen 3 dashboard
-##   JSON shape: tiles, layouts, variables, map tile, section dividers, category overrides.
-## - `.example/example_data_injector.workflow.json` — Workflow + JS task shape (schedule, ownerType, action type, position).
-## - `.example/example-injector.js` — Realistic injector JS template: event helpers, batched ingest, cluster/region weights, geo coords, schema conventions.
-## The agent must **mirror the structure** of these examples.
+- `.example/example_dashboard.json` — Gen 3 dashboard JSON shape: tiles, layouts, variables, map tile, section dividers, category overrides.
+- `.example/example_data_injector.workflow.json` — Workflow + JS task shape (schedule, ownerType, action type, position).
+- `.example/example-injector.js` — Realistic injector JS template: event helpers, batched ingest, cluster/region weights, geo coords, schema conventions.
+
+The agent must **mirror the structure** of these examples.
 
 ---
 
@@ -578,7 +576,7 @@ Use the `dt-app-dashboards`, `dt-dql-essentials`, `dt-app-notebooks`, and
 
 ---
 
-## Phase 3 — Create Dynatrace entities (Gen 3 / Grail tenants)
+## Phase 4 — Create Dynatrace entities (Gen 3 / Grail tenants)
 
 On Gen 3 / Grail-native tenants the classic entity APIs are unavailable. The
 only reliable path to create topology entities from BizEvents is
@@ -655,7 +653,7 @@ Verify entity creation:
 dtctl query "smartscapeNodes \"CUSTOM_<TYPE>\", from:now()-1h | limit 20" --plain
 ```
 
-## Phase 4 — Event injector JavaScript
+## Phase 5 — Event injector JavaScript
 
 Use `.example/example-injector.js` and the `script`
 field in `example_data_injector.workflow.json` as the structural template.
@@ -682,7 +680,7 @@ field in `example_data_injector.workflow.json` as the structural template.
 
 ---
 
-## Phase 5 — Dashboard implementation checklist
+## Phase 6 — Dashboard implementation checklist
 
 Pre‑implementation:
 - [ ] Meaningful dashboard title (e.g. `<Technology> | Operations Dashboard`).
@@ -732,7 +730,7 @@ Styling & validation:
 
 ---
 
-## Phase 6 — Workflow & deployment (CRITICAL RULES)
+## Phase 7 — Workflow & deployment (CRITICAL RULES)
 
 The injector workflow is **shared across all technologies** in a tenant. There
 is exactly one injector workflow per tenant; new companies are added as
@@ -767,9 +765,9 @@ is exactly one injector workflow per tenant; new companies are added as
 3. **Search for the existing injector workflow first:**
    ```bash
    dtctl get workflows -o json --plain | \
-     jq '.[] | select(.title | test("BizEvents Dashboard Generator|KPI Data Injector|injector"; "i"))'
+     jq '.[] | select(.title | test("Metric Entity Dashboard Generator|injector"; "i"))'
    ```
-   Prefer the workflow titled `1.BizEvents Dashboard Generator`. If multiple
+   Prefer the workflow titled `1.Metric Entity Dashboard Generator`. If multiple
    match, confirm with the user.
 
 4. **If a workflow exists (the normal case):**
@@ -783,7 +781,7 @@ is exactly one injector workflow per tenant; new companies are added as
    - Use `.example/example_data_injector.workflow.json`
      as the template.
    - Replace its single task with the new company's task; rename the
-     workflow `1.BizEvents Dashboard Generator`.
+     workflow `1.Metric Entity Dashboard Generator`.
    - `dtctl apply -f` it; capture the workflow ID.
 
 6. **Execute and verify:**
@@ -798,7 +796,7 @@ is exactly one injector workflow per tenant; new companies are added as
    ```
    The task name is required via the `-t/--task` flag, NOT positional.
 
-67 **Verify ingestion:**
+7. **Verify ingestion:**
    ```dql
    fetch bizevents
    | filter event.provider == "<company>.event.provider"
@@ -815,7 +813,7 @@ is exactly one injector workflow per tenant; new companies are added as
 
 ---
 
-## Phase 7 — Documentation deliverables
+## Phase 8 — Documentation deliverables
 
 For every project, write into the company folder:
 
@@ -850,7 +848,7 @@ For every project, write into the company folder:
 
 ---
 
-## Phase 8 — Quality gate (run before declaring done)
+## Phase 9 — Quality gate (run before declaring done)
 
 - [ ] Logo renders.
 - [ ] All section dividers show correct colors.
@@ -877,7 +875,7 @@ For every project, write into the company folder:
 5. **Document everything** — `LEARNINGS.md` is the knowledge capital.
 6. **Consistency breeds quality** — follow the example shape exactly.
 7. **One injector workflow per tenant** — always add a task, never duplicate.
-8. **Variables default to `*` (all values)** — every `query`-type dashboard variable must set `"defaultSelectAll": true`. Omitting it causes Dynatrace to pre-select the first result and the dashboard opens with filtered data instead of the full picture.
+8. **Variables default to `*` (all values)** — set `"defaultSelectAll": true` on every query variable.
 
 ---
 

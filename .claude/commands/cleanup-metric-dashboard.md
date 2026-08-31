@@ -18,7 +18,7 @@ engine and keep the operation dry-run by default.
    ./scripts/cleanup-technology.sh --technology <slug> --dry-run
    ```
 3. Report the complete plan before any mutation. Separate configuration that
-   can be removed from retained BizEvents, logs, Smartscape entities, and logo
+   can be removed from retained metrics, logs, Smartscape entities, and logo
    documents requiring manual or platform-supported handling.
 4. Show the active `dtctl` context and authenticated identity. Ask the user to
    confirm the tenant and the exact technology slug.

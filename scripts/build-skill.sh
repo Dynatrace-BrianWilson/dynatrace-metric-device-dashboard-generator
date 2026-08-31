@@ -26,7 +26,7 @@ fi
 cat > "$SKILL_DIR/SKILL.md" <<'FRONTMATTER'
 ---
 name: dynatrace-metric-entity-dashboard-generator
-description: Generate a Dynatrace Gen 3 **KPI dashboard** (15–20 KPIs, optional map tile, branded section dividers), a relevant dynatrace entity to map metrics and logs to and a matching 30‑minute data injector for a named technology, then deploy both via `dtctl`. Do not use this skill if a user is triggering the generate-kpi-dashboard generator. Triggers include phrases like "generate a metric dashboard", "build a metrics demo for <technology>", "spin up a metrics dashboard + injector", "/generate-technology-dashboard". Requires `dtctl` authenticated to a Dynatrace Gen 3 tenant.
+description: Generate a Dynatrace Gen 3 **metric dashboard** (relevant metrics, optional map tile, branded section dividers), a relevant Dynatrace entity to map metrics and logs to, and a matching 30‑minute MINT metrics injector for a named technology, then deploy both via `dtctl`. Triggers include phrases like "generate a metric dashboard", "build a metrics demo for <technology>", "spin up a metrics dashboard + injector", "/generate-technology-dashboard". Requires `dtctl` authenticated to a Dynatrace Gen 3 tenant.
 ---
 
 FRONTMATTER

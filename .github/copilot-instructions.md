@@ -1,4 +1,4 @@
-# GitHub Copilot Instructions — Business Event Generator
+# GitHub Copilot Instructions — Metric-Entity Dashboard Generator
 
 This repository is an **agent**: it generates a Dynatrace Gen 3 metric dashboard, metric injector, OpenPipeline entity pipeline, and Smartscape entity topology for a technology a user names.
 
@@ -17,7 +17,7 @@ This repository is an **agent**: it generates a Dynatrace Gen 3 metric dashboard
    - `<technology>-openpipeline.json`
    - `<technology>-openpipeline-routing.json`
    - `README.md`, `LEARNINGS.md`, `SALES-PITCH.md`
-4. Apply the OpenPipeline settings with `dtctl apply` before running the workflow — entities are created by the pipeline as BizEvents arrive.
+4. Apply the OpenPipeline settings with `dtctl apply` before running the workflow — entities are created by the pipeline as MINT metrics arrive.
 5. Mirror the shape of files in `.example/`.
 
 ## Hard rules
@@ -42,7 +42,7 @@ This repository is an **agent**: it generates a Dynatrace Gen 3 metric dashboard
 ## Reference implementation and adaptation
 
 Use `skills/dynatrace-metric-entity-dashboard-generator/reference/zscaler-internet-access/` as the working example for the
-complete lifecycle: dashboard, BizEvents, optional logs, OpenPipeline entity
+complete lifecycle: dashboard, MINT metrics, optional logs, OpenPipeline entity
 extraction, shared workflow tasks, and live validation. Copy its structure,
 not its domain schema. Before generating, classify the technology as a
 device/network, runtime platform, database, application/service, business
