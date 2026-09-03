@@ -233,6 +233,9 @@ Known behavior:
   `https://commons.wikimedia.org/w/api.php?action=query&titles=File:<Name>.svg&prop=imageinfo&iiprop=url&format=json`.
 - `1000logos.net` and `logos-world.net` — allow hot-linking, return
   `image/png`. Reliable fallback for major brands.
+- `www.vectorlogo.zone/logos/<vendor>/<vendor>-ar21.svg` — reliable SVG source
+  for networking/enterprise vendors (Cisco, Juniper, Palo Alto, etc.) that lack
+  good PNG sources. Returns `image/svg+xml`. Use as fallback when the above fail.
 - Corporate `*.com` CDNs (e.g. `i5.walmartimages.com`,
   `corporate.<brand>.com`) — usually unstable; require auth or rotate.
   Avoid unless verified.
@@ -648,6 +651,21 @@ MINT line format (commas as separators — NOT semicolons):
 metric.key,dim1=val1,dim2=val2 value timestampMs
 ```
 
+**MINT ingest endpoint — Gen 3 tenants only:**
+```
+/platform/classic/environment-api/v2/metrics/ingest
+```
+**NEVER use `/platform/ingest/v1/metrics`** — that path only exists on classic
+`live.dynatrace.com` domains. On Gen 3 `apps.dynatrace.com` tenants it returns
+HTTP 404 with a redirect hint to the live domain. Use the `/platform/classic/`
+proxy for both BizEvents and MINT metrics:
+
+| Signal | Correct endpoint (Gen 3) |
+|--------|--------------------------|
+| BizEvents | `/platform/classic/environment-api/v2/bizevents/ingest` |
+| MINT metrics | `/platform/classic/environment-api/v2/metrics/ingest` |
+| Logs | `/platform/classic/environment-api/v2/logs/ingest` |
+
 Verify entity creation:
 ```bash
 dtctl query "smartscapeNodes \"CUSTOM_<TYPE>\", from:now()-1h | limit 20" --plain
@@ -784,7 +802,9 @@ is exactly one injector workflow per tenant; new companies are added as
      workflow `1.Metric Entity Dashboard Generator`.
    - `dtctl apply -f` it; capture the workflow ID.
 
-6. **Execute and verify:**
+6. **Execute and verify — with production fallback:**
+
+   **Primary (sprint/demo tenants):**
    ```bash
    dtctl exec workflow <id>
    dtctl describe workflow-execution <exec-id>   # wait for SUCCESS
@@ -796,12 +816,32 @@ is exactly one injector workflow per tenant; new companies are added as
    ```
    The task name is required via the `-t/--task` flag, NOT positional.
 
-7. **Verify ingestion:**
-   ```dql
-   fetch bizevents
-   | filter event.provider == "<company>.event.provider"
-   | summarize total = count()
+   **Fallback (production tenants — Automation Authorization not configured):**
+   If `dtctl exec workflow` fails with *"Could not run workflow task… Please ensure
+   Authorization Settings are configured"*, the AutomationEngine cannot impersonate
+   the user on this tenant. Use `dtctl exec function` instead — it runs the JS
+   directly under the user's OAuth token and requires no additional authorization:
+   ```bash
+   dtctl exec function -f "dashboards/<technology>/<technology>-injector.js" --plain
    ```
+   This does **not** trigger the workflow tasks (entity-creator, log injector); run
+   those separately if needed:
+   ```bash
+   dtctl exec function -f "dashboards/<technology>/<technology>-entity-creator.js" --plain
+   ```
+   The workflow itself still exists for scheduled 30-minute runs if/when Automation
+   authorization is later configured. Do not delete it.
+
+7. **Verify ingestion — account for fresh-tenant indexing delay:**
+   On a production tenant seeing BizEvents for the first time, the Grail index may
+   lag several seconds. The default 2-hour query window can return 0 immediately
+   after a successful ingest. Always use an explicit short window for the first check:
+   ```dql
+   fetch bizevents, from:now()-30m
+   | filter event.provider == "<company>.event.provider"
+   | summarize total = count(), types = countDistinct(event.type)
+   ```
+   If that also returns 0, wait 15–30 seconds and retry before concluding ingest failed.
 
 **Never create a second injector workflow** when one already exists.
 
