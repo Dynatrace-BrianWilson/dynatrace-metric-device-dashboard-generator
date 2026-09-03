@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST_ROOT="$ROOT/dashboards"
 MODE="list"
 TECHNOLOGY=""
+YES=0
 
 usage() {
   cat <<'USAGE'
@@ -14,6 +15,7 @@ Usage:
   scripts/cleanup-technology.sh --list
   scripts/cleanup-technology.sh --technology <slug> --dry-run
   scripts/cleanup-technology.sh --technology <slug> --confirm
+  scripts/cleanup-technology.sh --technology <slug> --confirm --yes   # skip interactive prompt (for non-interactive/agentic use)
 
 The command is dry-run unless --confirm is supplied. It never deletes the
 shared workflow, historical metrics, or historical logs.
@@ -44,6 +46,7 @@ while [ "$#" -gt 0 ]; do
     --technology|-t) [ "$#" -ge 2 ] || fail "--technology requires a slug"; TECHNOLOGY="$2"; MODE="plan"; shift ;;
     --dry-run) MODE="plan" ;;
     --confirm) MODE="cleanup" ;;
+    --yes|-y) YES=1 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "unknown argument: $1" ;;
   esac
@@ -122,9 +125,13 @@ echo "Active context: ${CURRENT_CONTEXT:-unknown}"
 echo "Authenticated identity: ${IDENTITY:-unknown}"
 echo
 echo "This will remove the listed configuration for '$TECHNOLOGY'."
-printf "Type the technology slug to confirm: "
-read -r confirmation
-[ "$confirmation" = "$TECHNOLOGY" ] || fail "confirmation did not match; nothing was changed"
+if [ "$YES" = "1" ]; then
+  echo "(confirmation skipped via --yes)"
+else
+  printf "Type the technology slug to confirm: "
+  read -r confirmation < /dev/tty
+  [ "$confirmation" = "$TECHNOLOGY" ] || fail "confirmation did not match; nothing was changed"
+fi
 
 echo
 

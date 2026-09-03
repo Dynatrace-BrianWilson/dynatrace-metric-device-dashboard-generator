@@ -24,7 +24,7 @@ engine and keep the operation dry-run by default.
    confirm the tenant and the exact technology slug.
 5. Only after explicit confirmation, run:
    ```bash
-   ./scripts/cleanup-technology.sh --technology <slug> --confirm
+   ./scripts/cleanup-technology.sh --technology <slug> --confirm --yes
    ```
 6. Report each deleted resource, any resources that remain, and the retained
    telemetry. Never delete the shared workflow.

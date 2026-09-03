@@ -12,7 +12,7 @@ engine and keep the operation dry-run by default.
 2. For a selected technology, run `./scripts/cleanup-technology.sh --technology <slug> --dry-run`.
 3. Show the complete plan, active tenant, authenticated identity, retained telemetry, and unsupported cleanup items.
 4. Require explicit tenant confirmation and typed technology-slug confirmation.
-5. Only then run `./scripts/cleanup-technology.sh --technology <slug> --confirm`.
+5. Only then run `./scripts/cleanup-technology.sh --technology <slug> --confirm --yes`.
 6. Report deleted and retained resources. Never delete the shared workflow.
 
 Require a valid `asset-manifest.json`; do not infer ownership from names alone.
