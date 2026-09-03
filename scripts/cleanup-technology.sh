@@ -27,8 +27,11 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 delete_resource() {
   local resource_type="$1"
   local resource_id="$2"
+  # builtin: schema IDs are settings objects — map to the dtctl resource name
+  local dtctl_type="$resource_type"
+  [[ "$resource_type" == builtin:* ]] && dtctl_type="settings"
   local output
-  if output="$(dtctl delete "$resource_type" "$resource_id" --plain 2>&1)"; then
+  if output="$(dtctl delete "$dtctl_type" "$resource_id" --plain 2>&1)"; then
     printf '%s\n' "$output"
     return 0
   fi
@@ -160,7 +163,15 @@ while IFS=$'\t' read -r resource_type resource_id; do
   [ -n "$resource_type" ] || continue
   echo "Deleting $resource_type $resource_id..."
   delete_resource "$resource_type" "$resource_id"
-done < <(jq -r '(.resources.dashboard[]?, .resources.settings[]?) | [.type, .id] | @tsv' "$MANIFEST")
+done < <(jq -r '
+  [
+    (.resources.dashboard[]? | {type: .type, id: .id, order: 0}),
+    (.resources.settings[]?  | {type: .type, id: .id,
+       order: (if .type | test("routing")  then 1
+               elif .type | test("pipeline") then 2
+               else 1 end)})
+  ] | sort_by(.order) | .[] | [.type, .id] | @tsv
+' "$MANIFEST")
 
 jq -r '.resources.documents[]? | "Document retained for manual/platform-supported cleanup: \(.id)"' "$MANIFEST"
 
@@ -168,7 +179,9 @@ echo
 echo "Verifying deleted configuration..."
 while IFS=$'\t' read -r resource_type resource_id; do
   [ -n "$resource_type" ] || continue
-  if dtctl get "$resource_type" "$resource_id" -o json --plain >/dev/null 2>&1; then
+  verify_type="$resource_type"
+  [[ "$resource_type" == builtin:* ]] && verify_type="settings"
+  if dtctl get "$verify_type" "$resource_id" -o json --plain >/dev/null 2>&1; then
     echo "WARNING: $resource_type $resource_id is still readable" >&2
   else
     echo "Verified absent: $resource_type $resource_id"

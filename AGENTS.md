@@ -626,6 +626,7 @@ only reliable path to create topology entities from BizEvents is
 - `requiredDimensions.valuePattern` in routing must use `$eq(value)` or `$prefix(value)` syntax — raw strings cause HTTP 400.
 - **OpenPipeline routing `pipelineId`** must be the long base64-encoded settings object ID returned by `dtctl apply`, NOT the human-readable `customId` string. After applying the pipeline settings file, read back the object ID with `dtctl describe settings <id>` and use that value in the routing file.
 - Entities appear in **Explorer Classic** (Infrastructure & Operations app → Smartscape). They do NOT appear in Explorer New without an Extension Framework 2.0 (EF2) extension.
+- **OpenPipeline deletion order matters:** always delete the routing settings object **before** the pipeline settings object. The API enforces a referential constraint — deleting the pipeline while a routing entry still points to it returns HTTP 400 "Constraints violated".
 
 ### Entity type guidance
 
