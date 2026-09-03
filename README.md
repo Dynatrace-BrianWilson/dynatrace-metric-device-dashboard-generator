@@ -83,7 +83,9 @@ dtctl auth login --context my-env --environment "https://<env>.apps.dynatrace.co
 ./scripts/check-prereqs.sh
 ```
 
-> **Windows users:** see [Windows install](#windows-install) below.
+> [!IMPORTANT]
+> **Windows users:** the script above does not run on Windows.
+> Skip it and follow the **[Windows install instructions](#windows-install)** section below.
 
 ---
 
