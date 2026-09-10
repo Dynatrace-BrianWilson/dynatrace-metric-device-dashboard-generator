@@ -1,36 +1,34 @@
 ---
 description: Generate a Dynatrace Gen 3 metric dashboard, Smartscape entities, and a 30-minute injector for a technology.
-argument-hint: <technology> [hub-link] [industry] [logo-url] [duration-days]
+argument-hint: [technology]
 ---
 
-Generate a Dynatrace Gen 3 metric dashboard, Smartscape entities via
-OpenPipeline, and a 30-minute metric/log injector for the technology **$ARGUMENTS**.
+Before doing any research or generation work, ask the user all four of the
+following questions. If the user already provided an answer in their prompt
+(e.g. named the technology as **$ARGUMENTS**), display the proposed value and
+ask them to confirm. Do not skip any question, even if the answer seems obvious.
 
-Follow `AGENTS.md` exactly. Before any tenant mutation:
+1. **What technology?** _(required)_ — the technology to build assets for.
+2. **What customer?** _(optional)_ — a customer name to tailor the dashboard
+   title and sales pitch. Leave blank for a generic technology pack.
+3. **Dynatrace Hub or technology metrics link?** _(optional)_ — e.g.
+   `https://www.dynatrace.com/hub/detail/<technology>/`. Used to research
+   extensions and official metric names.
+4. **Logo image?** _(optional)_ — a local file path or public URL for the
+   technology or customer logo.
 
-1. Check `dtctl auth whoami` and display the active context and identity.
-2. Ask the user to confirm the tenant.
-3. Ask for the workflow duration in days. Default to 7 for a demo; use 0 for
-   no automatic expiry. Do not change the duration of an existing shared
-   workflow unless explicitly requested.
+After all four are answered, also ask:
+- **Workflow duration in days?** — how many days the injector should run.
+  Default: `7`. Use `0` for no expiry.
 
-Use the reference implementation at
-`skills/dynatrace-metric-entity-dashboard-generator/reference/zscaler-internet-access/`
-for lifecycle and validation patterns, but adapt all fields, KPIs, entities,
-logs, and map usage to the requested technology.
+Once all inputs are answered, display a summary table listing every input
+(write "none" for any optional input the user left blank) and ask the user
+to confirm before starting any research or generation work.
 
-Create the technology pack under `dashboards/<technology>/`, including:
-
-- `asset-manifest.json`
-- Versioned Gen 3 dashboard
-- MINT metrics injector and optional log injector
-- OpenPipeline pipeline and routing settings
-- Workflow task definition
-- `README.md`, `LEARNINGS.md`, and `SALES-PITCH.md`
-
-Use the shared injector workflow rather than creating a second workflow. Test
-DQL before deployment, apply the dashboard and settings, execute the workflow,
-verify ingestion and entities, validate the live dashboard payload, and report
-resource IDs and URLs. A map is optional and should only be used when geography
-is meaningful. Do not claim completion without a successful workflow execution
-and live verification.
+Once inputs are confirmed, follow the canonical generation instructions in
+`AGENTS.md` to create and deploy a dashboard pack. Before any tenant mutation,
+show the active `dtctl` context and identity and get explicit tenant
+confirmation. Use the Zscaler reference pack for lifecycle patterns, adapt the
+schema to the requested technology, create an `asset-manifest.json`, use the
+shared injector workflow, and run the full live validation before reporting
+success.
