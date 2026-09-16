@@ -36,18 +36,20 @@ You are a Dynatrace Solutions Engineer. For a given technology:
 4. Create a Dynatrace entity to map metrics and logs to.
 5. Create a JavaScript injector that streams 3,000–5,000 metric events per
    30‑minute run, and if applicable, 2000 log entries per run.
-6. Deploy both to Dynatrace via `dtctl`, **adding a task to the existing
-   injector workflow** (never creating a second injector workflow).
+6. Deploy both to Dynatrace via `dtctl`, creating **a dedicated workflow for
+   this technology** (never merging tasks for different technologies into the
+   same workflow — each technology's schedule and expiration must stay
+   independent).
 7. Document patterns in the technology folder for reuse.
 
 ### Asset ownership and cleanup
 
 Every generated technology folder must include an `asset-manifest.json` with
 `managedBy: dynatrace-metric-entity-dashboard-generator`, the event provider,
-log source, dashboard IDs, OpenPipeline setting IDs, shared workflow ID and
-task names, logo document IDs, and entity type/prefix. Use this manifest as
-the primary cleanup record; do not infer ownership from a dashboard title
-alone.
+log source, dashboard IDs, OpenPipeline setting IDs, this technology's
+dedicated workflow ID and task names, logo document IDs, and entity
+type/prefix. Use this manifest as the primary cleanup record; do not infer
+ownership from a dashboard title alone.
 
 Validate it with `scripts/validate-asset-manifest.sh` before deployment. A
 generated pack is not cleanup-ready until the manifest passes validation.
@@ -55,11 +57,12 @@ Run `scripts/test-asset-manifest.sh` when changing the manifest schema or
 cleanup behavior.
 
 The cleanup operation must default to discovery or dry-run. It must display
-the active tenant, require typed technology confirmation before deletion, edit
-only that technology's tasks out of the shared workflow, and never delete the
-shared workflow. Historical BizEvents and logs are retained; Smartscape
-entities may require tenant-supported lifecycle handling and must not be
-reported as deleted without verification.
+the active tenant, require typed technology confirmation before deletion, and
+delete that technology's dedicated workflow entirely — it is never shared with
+another technology, so there is nothing else to preserve inside it. Historical
+BizEvents and logs are retained; Smartscape entities may require
+tenant-supported lifecycle handling and must not be reported as deleted
+without verification.
 
 ### Workflow duration
 
@@ -79,9 +82,9 @@ trigger:
 ```
 
 The interval remains `30` minutes. `0` means omit the end parameters and leave
-the workflow running indefinitely. Do not change the duration of an existing
-shared workflow when adding a technology task unless the user explicitly asks;
-the schedule belongs to the whole shared workflow, not to one task.
+the workflow running indefinitely. Each technology has its own dedicated
+workflow, so its schedule and expiration are independent — setting or
+changing this technology's duration never affects any other technology.
 
 After applying a finite-duration workflow, read it back with `dtctl get
 workflow` and verify that the persisted schedule contains the intended end
@@ -93,8 +96,9 @@ an unlimited workflow.
 
 Use `skills/dynatrace-metric-entity-dashboard-generator/reference/zscaler-internet-access/` as the primary working example for
 the complete asset lifecycle. It demonstrates a Gen 3 dashboard, BizEvents
-injector, optional synthetic logs, OpenPipeline Smartscape extraction, shared
-workflow tasks, threshold persistence validation, and live ingestion checks.
+injector, optional synthetic logs, OpenPipeline Smartscape extraction, a
+dedicated multi-task workflow, threshold persistence validation, and live
+ingestion checks.
 
 Treat Zscaler's fields and event names as technology-specific. Reuse its
 structure and validation approach, but redesign the event schema, entity type,
@@ -785,9 +789,11 @@ Styling & validation:
 
 ## Phase 7 — Workflow & deployment (CRITICAL RULES)
 
-The injector workflow is **shared across all technologies** in a tenant. There
-is exactly one injector workflow per tenant; new companies are added as
-**additional tasks** inside it.
+Each technology gets its **own dedicated workflow** — never merge tasks for
+different technologies into a single workflow. This keeps schedules,
+expirations, and manual run/pause controls independent per technology: pausing,
+re-scheduling, or setting an expiration for one technology never touches
+another's.
 
 ### Step‑by‑step
 
@@ -815,27 +821,34 @@ is exactly one injector workflow per tenant; new companies are added as
    ```
    These create the `smartscapeNode` pipeline that extracts Smartscape entities from BizEvents.
 
-3. **Search for the existing injector workflow first:**
+3. **Check whether this technology already has its own workflow (only relevant
+   when updating an existing pack, not on a first run):**
    ```bash
    dtctl get workflows -o json --plain | \
-     jq '.[] | select(.title | test("Metric Entity Dashboard Generator|injector"; "i"))'
+     jq --arg t "<technology>" '.[] | select(.title | test($t; "i"))'
    ```
-   Prefer the workflow titled `1.Metric Entity Dashboard Generator`. If multiple
-   match, confirm with the user.
+   Never search for or reuse a workflow that belongs to a different
+   technology — each technology's workflow is independent, never shared.
 
-4. **If a workflow exists (the normal case):**
+4. **If this technology's own workflow already exists (updating an existing
+   pack):**
    - `dtctl get workflow <id> -o json --plain > .tmp/workflow.json`
-   - Append a new task keyed `<company>_v1` (or `_v2` on iteration).
-   - Use a **unique** `position.{x, y}` — duplicates produce a 400 error.
-   - Set `predecessors: []` so tasks run in parallel.
+   - Add the new version's task(s) (`<company>_v2`, etc.), keeping earlier
+     version tasks unless the user asks to remove them.
+   - Use a **unique** `position.{x, y}` within this workflow — duplicates
+     produce a 400 error.
+   - Set `predecessors: []` for tasks that should run independently, or list
+     the metrics task as a predecessor for logs/entity tasks that should run
+     after it succeeds.
    - `dtctl apply -f .tmp/workflow.json`
 
-5. **If no workflow exists (first run on a brand‑new tenant only):**
-   - Use `.example/example_data_injector.workflow.json`
+5. **If this technology has no workflow yet (the normal case — first run):**
+   - Use `skills/dynatrace-metric-entity-dashboard-generator/reference/zscaler-internet-access/zscaler-internet-access-workflow.yaml`
      as the template.
-   - Replace its single task with the new company's task; rename the
-     workflow `1.Metric Entity Dashboard Generator`.
-   - `dtctl apply -f` it; capture the workflow ID.
+   - Replace its tasks with this technology's task(s); title the workflow
+     `<Technology> | Injector Workflow`.
+   - `dtctl apply -f` it; capture the workflow ID — **this workflow belongs
+     exclusively to this technology.**
 
 6. **Execute and verify — with production fallback:**
 
@@ -878,7 +891,9 @@ is exactly one injector workflow per tenant; new companies are added as
    ```
    If that also returns 0, wait 15–30 seconds and retry before concluding ingest failed.
 
-**Never create a second injector workflow** when one already exists.
+**Never merge this technology's tasks into another technology's workflow**,
+and never create a second workflow for the *same* technology when one already
+exists — update it instead.
 
 ### Versioning
 
@@ -949,7 +964,9 @@ For every project, write into the company folder:
 4. **Test before deploy** — DQL in the editor first.
 5. **Document everything** — `LEARNINGS.md` is the knowledge capital.
 6. **Consistency breeds quality** — follow the example shape exactly.
-7. **One injector workflow per tenant** — always add a task, never duplicate.
+7. **One dedicated workflow per technology** — never merge tasks for different
+   technologies into a single workflow; this keeps schedules, expirations, and
+   manual run/pause controls independent per technology.
 8. **Variables default to `*` (all values)** — set `"defaultSelectAll": true` on every query variable.
 
 ---
@@ -958,7 +975,9 @@ For every project, write into the company folder:
 
 - Do not invent dashboard IDs, workflow IDs, or URLs — always use values
   returned by `dtctl`.
-- Do not create a second injector workflow when one exists.
+- Do not merge a technology's tasks into another technology's workflow, and do
+  not create a second workflow for the same technology when one already
+  exists — update it instead.
 - Do not create a dashboard variable without `"defaultSelectAll": true` — dashboards must open showing all data, not a filtered subset.
 - Do not add a map when geographic data is not meaningful; when included,
   validate its coordinates and rendering.

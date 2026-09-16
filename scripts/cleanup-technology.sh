@@ -17,8 +17,9 @@ Usage:
   scripts/cleanup-technology.sh --technology <slug> --confirm
   scripts/cleanup-technology.sh --technology <slug> --confirm --yes   # skip interactive prompt (for non-interactive/agentic use)
 
-The command is dry-run unless --confirm is supplied. It never deletes the
-shared workflow, historical metrics, or historical logs.
+The command is dry-run unless --confirm is supplied. Each technology owns its
+workflow exclusively, so cleanup deletes it entirely. Historical metrics and
+historical logs are never deleted.
 USAGE
 }
 
@@ -107,10 +108,10 @@ jq -r '
   (.resources.dashboard[]? | "- dashboard \(.id) \(.name // "")"),
   (.resources.settings[]? | "- setting \(.id) [\(.role // "")]") ,
   (.resources.documents[]? | "- document \(.id) [\(.role // "")] (manual/platform-supported cleanup)"),
-  (.workflow.tasks[]? | "- shared workflow task \(. )")
+  (.workflow.tasks[]? | "- workflow task \(. )")
 ' "$MANIFEST"
 echo
-echo "Shared workflow: ${WORKFLOW_ID:-none} (will be edited, never deleted)"
+echo "Workflow: ${WORKFLOW_ID:-none} (owned exclusively by this technology — will be deleted entirely)"
 echo "Retained telemetry: metrics and logs for this technology"
 echo "Smartscape entities: reported for follow-up; not assumed deletable"
 
@@ -139,24 +140,8 @@ fi
 echo
 
 if [ -n "$WORKFLOW_ID" ]; then
-  workflow_tmp="$(mktemp)"
-  trap 'rm -f "$workflow_tmp"' EXIT
-  dtctl get workflow "$WORKFLOW_ID" -o json --plain > "$workflow_tmp"
-  task_args=()
-  while IFS= read -r task; do
-    [ -n "$task" ] && task_args+=("$task")
-  done < <(jq -r '.workflow.tasks[]?' "$MANIFEST")
-  if [ "${#task_args[@]}" -gt 0 ]; then
-    echo "Removing ${#task_args[@]} task(s) from shared workflow $WORKFLOW_ID..."
-    jq --argjson names "$(printf '%s\n' "${task_args[@]}" | jq -R . | jq -s .)" '
-      if .result.tasks then .result.tasks |= with_entries(select(.key as $k | ($names | index($k)) | not))
-      else .tasks |= with_entries(select(.key as $k | ($names | index($k)) | not)) end
-    ' "$workflow_tmp" > "${workflow_tmp}.updated"
-    jq '.result // .' "${workflow_tmp}.updated" > "${workflow_tmp}.resource"
-    dtctl apply -f "${workflow_tmp}.resource" -o json --plain
-    rm -f "${workflow_tmp}.updated"
-    rm -f "${workflow_tmp}.resource"
-  fi
+  echo "Deleting workflow $WORKFLOW_ID (owned exclusively by '$TECHNOLOGY')..."
+  delete_resource "workflow" "$WORKFLOW_ID"
 fi
 
 while IFS=$'\t' read -r resource_type resource_id; do
@@ -186,7 +171,11 @@ while IFS=$'\t' read -r resource_type resource_id; do
   else
     echo "Verified absent: $resource_type $resource_id"
   fi
-done < <(jq -r '(.resources.dashboard[]?, .resources.settings[]?) | [.type, .id] | @tsv' "$MANIFEST")
+done < <(jq -r '
+  (.resources.dashboard[]?, .resources.settings[]?) | [.type, .id],
+  (if (.workflow.id // empty) != "" then [ "workflow", .workflow.id ] else empty end)
+  | @tsv
+' "$MANIFEST")
 
 echo
 echo "Cleanup complete for configuration assets belonging to $TECHNOLOGY."
