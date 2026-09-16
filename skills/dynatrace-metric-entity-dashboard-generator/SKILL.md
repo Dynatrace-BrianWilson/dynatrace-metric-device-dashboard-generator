@@ -359,11 +359,23 @@ mirror the version (e.g. `acme_v1`, `acme_v2`).
 
 ## Reference assets (read these before generating)
 
-## - `reference/example_dashboard.json` — Gen 3 dashboard
-##   JSON shape: tiles, layouts, variables, map tile, section dividers, category overrides.
-## - `reference/example_data_injector.workflow.json` — Workflow + JS task shape (schedule, ownerType, action type, position).
-## - `reference/example-injector.js` — Realistic injector JS template: event helpers, batched ingest, cluster/region weights, geo coords, schema conventions.
-## The agent must **mirror the structure** of these examples.
+- `reference/zscaler-internet-access/zscaler-internet-access-dashboard-v1.yaml` — Gen 3 dashboard shape: tiles, layouts, variables, map tile, section dividers, category overrides.
+- `reference/zscaler-internet-access/zscaler-internet-access-workflow.yaml` — Workflow + JS task shape (schedule, ownerType, action type, position).
+- `reference/zscaler-internet-access/zscaler-internet-access-injector.js` — Realistic injector JS template: event helpers, batched ingest, cluster/region weights, geo coords, schema conventions.
+- `reference/zscaler-internet-access/zscaler-internet-access-log-injector.js` — Log injector JS template, when the technology warrants one.
+- `reference/zscaler-internet-access/zscaler-internet-access-entity-creator.js` — Workflow task JS that MINT-ingests entities from BizEvents.
+- `reference/zscaler-internet-access/zscaler-internet-access-openpipeline.yaml` and `-openpipeline-routing.yaml` — OpenPipeline settings and routing rule for Smartscape entity extraction.
+
+The agent must **mirror the structure** of these examples.
+
+> **CRITICAL — read reference files in full, never truncated.** These files
+> run several hundred lines, and structurally important sections (e.g. the
+> `layouts:` mapping) can appear near the end. If your read tool supports a
+> line-count cap (`limit`, `maxLines`, or similar), do not set one for these
+> files — a partial read has already caused a generated dashboard to come out
+> as a single stacked column because the agent never reached the `layouts:`
+> section. If a tool truncates automatically, re-read the remainder before
+> proceeding — do not generate output from a partial read.
 
 ---
 
@@ -385,17 +397,28 @@ Identify primary use cases, common problem, and important metrics. For each, def
 
 Two side‑by‑side markdown tiles (NOT one combined tile, NOT HTML):
 
+```yaml
+tiles:
+  "0":  # Logo tile
+    type: markdown
+    content: "![](https://.../logo.svg)"
+  "1":  # Title tile
+    type: markdown
+    content: "# <Technology> | Operations Dashboard\n\nReal-time KPI monitoring..."
+layouts:
+  "0":
+    x: 0
+    "y": 0
+    w: 6
+    h: 2
+  "1":
+    x: 6
+    "y": 0
+    w: 18
+    h: 2
 ```
-"0":  # Logo tile
-  type: markdown
-  content: "![](https://.../logo.svg)"
-  layout: { x: 0, y: 0, w: 6, h: 2 }
 
-"41":  # Title tile
-  type: markdown
-  content: "# <Technology> | Operations Dashboard\n\nReal-time KPI monitoring..."
-  layout: { x: 6, y: 0, w: 18, h: 2 }
-```
+> **CRITICAL — layout format:** Tile positions are defined in a **separate `layouts:` mapping** at the `content` level — they are NOT embedded inside the tile object itself. `layouts` is a sibling of `tiles`, not a child. Embedding `layout: {x,y,w,h}` inside a tile is silently ignored; the dashboard renders with all tiles stacked in a default grid.
 
 Markdown tiles do not reliably support `<div>`, `<img>`, or other inline
 HTML. Use pure markdown image syntax (`![](url)`).
@@ -430,13 +453,15 @@ Example divider:
       "colorThresholdTarget": "background"
     },
     "thresholds": [
-      { "id": 1, "field": "section", "rules": [
-        { "id": 1, "color": "#D4AF37", "comparator": "!=", "value": "1" }
+      { "id": 1, "field": "section", "title": "", "isEnabled": true, "rules": [
+        { "id": 1, "color": { "Default": "#D4AF37" }, "comparator": "!=", "label": "", "value": "1" }
       ]}
     ]
   }
 }
 ```
+
+> **CRITICAL — threshold color format:** Colors in threshold rules must use the object form `{ "Default": "#hex" }`, **not** a bare hex string `"#hex"`. A bare string is silently accepted but does not apply correctly. This applies to every `color` field inside every threshold rule across all tile types.
 
 ### Tile height guidelines
 
@@ -814,6 +839,8 @@ Tile creation:
       removed.
 - [ ] Consistent X positions (`0, 6, 12, 18`).
 - [ ] Y gaps minimized (`+1` to `+2`).
+- [ ] **All tile positions are in the `content.layouts` section** (sibling of `content.tiles`), NOT embedded inside individual tile objects.
+- [ ] All threshold `color` values use `{ "Default": "#hex" }` object form, not bare `"#hex"` strings.
 
 Styling & validation:
 - [ ] Section colors applied.
